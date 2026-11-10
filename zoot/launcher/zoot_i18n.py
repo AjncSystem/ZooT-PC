@@ -194,6 +194,29 @@ T = {
                                                'ja': '{path} に eden-cli.exe がありません',
                                                'ko': '{path}에 eden-cli.exe가 없습니다',
                                                'ru': 'eden-cli.exe не найден в {path}'},
+    'Relatório': {'en': 'Report', 'es': 'Informe', 'fr': 'Rapport', 'ja': 'レポート',
+                  'ko': '보고서', 'ru': 'Отчёт'},
+    'Salvar relatório': {'en': 'Save report', 'es': 'Guardar informe',
+                         'fr': 'Enregistrer le rapport', 'ja': 'レポートを保存',
+                         'ko': '보고서 저장', 'ru': 'Сохранить отчёт'},
+    'Não foi possível salvar o relatório: {e}': {
+        'en': 'Could not save the report: {e}', 'es': 'No se pudo guardar el informe: {e}',
+        'fr': 'Impossible d’enregistrer le rapport : {e}', 'ja': 'レポートを保存できませんでした: {e}',
+        'ko': '보고서를 저장할 수 없습니다: {e}', 'ru': 'Не удалось сохранить отчёт: {e}'},
+    'Relatório salvo em\n{path}\n\nAnexe este arquivo na issue do GitHub. Ele tem os registros das '
+    'últimas sessões e um resumo do PC, sem dados pessoais.': {
+        'en': 'Report saved to\n{path}\n\nAttach this file to the GitHub issue. It holds the last '
+              'sessions\' logs and a summary of this PC, without personal data.',
+        'es': 'Informe guardado en\n{path}\n\nAdjunta este archivo a la issue de GitHub. Tiene los '
+              'registros de las últimas sesiones y un resumen del PC, sin datos personales.',
+        'fr': 'Rapport enregistré dans\n{path}\n\nJoignez ce fichier à l’issue GitHub. Il contient '
+              'les journaux des dernières sessions et un résumé du PC, sans données personnelles.',
+        'ja': 'レポートを保存しました:\n{path}\n\nGitHub の issue に添付してください。最近のセッションの'
+              'ログと PC の概要が入っています（個人情報なし）。',
+        'ko': '보고서를 저장했습니다:\n{path}\n\nGitHub 이슈에 첨부하세요. 최근 세션 로그와 PC 요약이 '
+              '들어 있습니다(개인 정보 없음).',
+        'ru': 'Отчёт сохранён в\n{path}\n\nПриложите этот файл к issue на GitHub. В нём журналы '
+              'последних сессий и сводка о ПК, без личных данных.'},
     'Capa do jogo': {'en': 'Game cover', 'es': 'Portada del juego', 'fr': 'Jaquette du jeu',
                      'ja': 'ゲームのカバー', 'ko': '게임 커버', 'ru': 'Обложка игры'},
     'Uma imagem sua para o cartão do jogo e a tela de carregamento.': {

@@ -467,6 +467,8 @@ class Launcher(tk.Tk):
         # Stop, as in the SotC-PC launcher: closes the running game from the launcher.
         self.stop_btn = T.Button(bar, f"■  {_('Parar')}", self.stop)
         self.stop_btn.pack(side='right', pady=10)
+        # Report, as in the SotC-PC launcher: a .zip to attach to a GitHub issue.
+        T.Button(bar, _('Relatório'), self.save_report).pack(side='right', padx=(0, 10), pady=10)
         self.status = tk.Label(bar, text='', bg=T.SIDE, fg=T.MUTED, font=(T.BODY, 10),
                                anchor='w', justify='left')
         self.status.pack(side='left', fill='x', expand=True, padx=(24, 12))
@@ -1101,6 +1103,63 @@ class Launcher(tk.Tk):
             os.startfile(LOG)
         else:
             messagebox.showinfo(APP, _('Ainda não há registro: jogue uma vez.'))
+
+    # ---- report ---------------------------------------------------------------------------------
+    def save_report(self):
+        """A .zip to attach to a GitHub issue: a summary of this PC, the launcher settings, the
+        game's config and the last sessions' logs. Personal paths are hidden: the Windows user
+        folder becomes %USERPROFILE% and the game shows only its file name."""
+        import platform
+        default = Path.home() / 'Desktop' / f'ZooT-relatorio-{time.strftime("%Y-%m-%d_%H-%M")}.zip'
+        target = filedialog.asksaveasfilename(
+            title=_('Salvar relatório'), defaultextension='.zip', filetypes=[('ZIP', '*.zip')],
+            initialdir=str(default.parent if default.parent.is_dir() else Path.home()),
+            initialfile=default.name)
+        if not target:
+            return
+        home = str(Path.home())
+
+        def private(text):
+            return text.replace(home, '%USERPROFILE%').replace(home.replace('\\', '/'),
+                                                                 '%USERPROFILE%')
+        if not hasattr(self, 'hw'):
+            try:
+                self.hw = hardware()
+            except Exception:  # noqa: BLE001
+                self.hw = ([], 0)
+        gpus, ram = self.hw
+        game = Path(self.settings.get('game', ''))
+        summary = '\n'.join([
+            f'ZooT-PC launcher v{VERSION}',
+            f'Windows {platform.version()} ({platform.machine()})',
+            f'CPU: {platform.processor()}, {os.cpu_count()} threads',
+            'GPU: ' + ('; '.join(f'{n} ({m / 1024 ** 3:.0f} GB)' for n, m in gpus) or 'not found'),
+            f'RAM: {ram / 1024 ** 3:.0f} GB',
+            f'Game file: {game.name or "not set"}',
+            f'Shaders: {self.status.cget("text")}',
+        ])
+        settings = dict(self.settings, game=game.name)
+        files = [(LOG, 'eden_log.txt'), (LOG.with_name('eden_log.txt.old.txt'), 'eden_log.old.txt'),
+                 (ZDIR / 'launcher.log', 'launcher.log'), (INI, 'sdl2-config.ini')]
+        try:
+            with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr('report.txt', summary + '\n')
+                archive.writestr('launcher_settings.json',
+                                 json.dumps(settings, indent=2, ensure_ascii=False))
+                for path, name in files:
+                    if path.is_file():
+                        text = path.read_text(encoding='utf-8', errors='replace')
+                        archive.writestr(name, private(text))
+        except OSError as error:
+            messagebox.showerror(APP, _('Não foi possível salvar o relatório: {e}', e=error))
+            return
+        messagebox.showinfo(APP, _('Relatório salvo em\n{path}\n\nAnexe este arquivo na issue do '
+                                   'GitHub. Ele tem os registros das últimas sessões e um resumo '
+                                   'do PC, sem dados pessoais.', path=target))
+        try:
+            os.startfile(Path(target).parent)
+        except OSError:
+            pass
 
     # ---- cover ----------------------------------------------------------------------------------
     def choose_cover(self):
