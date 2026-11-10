@@ -67,3 +67,7 @@ vulkansdk*.exe
 
 # Build-time generated external sources
 externals/generated
+
+# ZooT-PC
+zoot/launcher/__pycache__/
+*.pyc

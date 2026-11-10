@@ -1,102 +1,70 @@
-<!--
-# SPDX-FileCopyrightText: Copyright 2025 Eden Emulator Project
-# SPDX-License-Identifier: GPL-3.0-or-later
+# ZooT-PC
 
-# SPDX-FileCopyrightText: 2018 yuzu Emulator Project
-# SPDX-License-Identifier: GPL-2.0-or-later
--->
+A PC setup of **The Legend of Zelda: Ocarina of Time** (Nintendo Switch 2) built on
+[Lichii](https://github.com/zortos293/Lichii), in the spirit of the
+[Shadow of the Colossus PC port](https://github.com/AjncSystem/ShadowOfTheColossus-PC):
+one game, one launcher, everything tuned for it.
 
-<h2 align="center">⚠️ Lichii has no official website ⚠️</h2>
+> **No game, keys, firmware or Nintendo artwork are included.** You need your own copy of the
+> game (`.nup`, `.nx`, `.nsp` or `.xci`). ZooT-PC is not affiliated with or endorsed by Nintendo.
 
-> [!CAUTION]
-> **Lichii has no official website.** The only site run by this project is the **game compatibility website, [lichii.zortos.me](https://lichii.zortos.me)**, for compatibility reports only. Download Lichii **only** from this repository's [releases page](https://github.com/zortos293/Lichii/releases). Any other "Lichii" website or download (such as lichii.org) is not ours and may contain malware ([#545](https://github.com/zortos293/Lichii/issues/545)).
+## What you get
 
-<p align="center">
-  <img src="dist/branding/lichii_icon_with_logo.png" alt="Lichii" width="600">
-</p>
+- **ZooT launcher** (`ZooT.exe`): finds your game, quick settings beside the game card, ready
+  check (game, core, shaders, graphics card and RAM, in red when below the minimum), Display &
+  FPS, **Controls** (keyboard or controller, automatic mapping, change any button), language,
+  saves with zip backups, help and the game log. Seven languages: Português, English, Español,
+  Français, 日本語, 한국어, Русский.
+- **Less shader stutter**: the game's shaders are extracted from your own copy and precompiled
+  once on a loading screen (Lichii's shader precache), with Vulkan pipeline libraries from Lichii
+  [PR #741](https://github.com/zortos293/Lichii/pull/741) so new pipelines only cost a link.
+- **In-game shortcuts**
+  - `F1` ZooT menu: FPS mode, fullscreen, scaling filter, FSR sharpening, anti-aliasing, aspect
+    ratio, VSync, console mode and volume, applied at once; resolution for the next start.
+  - `F7` FPS mode: 60 → 30 → unlimited (Ocarina's built-in Dynamic FPS keeps the game at speed).
+  - `F11` fullscreen.
+- **Portable**: everything stays next to the executables, in `user\` (config, saves, shader
+  caches, logs). Nothing goes to `%AppData%` or `%TEMP%`.
 
-# Lichii
+## Requirements
 
-Lichii is an experimental, open-source Nintendo Switch and Switch 2 emulator written in C++. It builds on Eglantine, Eden, yuzu and Sudachi, preserving their contributions while developing this fork's game compatibility and renderer fixes.
+- Windows 10/11, 64-bit.
+- A Vulkan 1.3 graphics card with 4 GB of video memory or more.
+- 16 GB of RAM or more.
 
-This is an independent fork, not an official release of those upstream projects. Lichii is not affiliated with Nintendo.
+## Install
 
-Visit the [Lichii game compatibility website](https://lichii.zortos.me) to find games and compare community compatibility reports.
+1. Download `ZooT-PC-v0.10.zip` from [Releases](https://github.com/AjncSystem/ZooT-PC/releases)
+   and extract it anywhere.
+2. Open `ZooT.exe` and choose your game file.
+3. Press **PLAY**. The first start prepares the shaders (a few minutes, once per driver; Esc
+   skips).
 
-## Downloads and setup
+Personal touches stay on your PC: `user\zoot\capa.png` (or `.jpg`) for the game card and the
+loading screen background, `user\zoot\icon.png` for the window icon.
 
-Download Lichii only from this repository's [releases page](https://github.com/zortos293/Lichii/releases). Lichii has no other download site: archives offered elsewhere, such as lichii.org, are not built by this project, and one has been reported to install malware ([#545](https://github.com/zortos293/Lichii/issues/545)).
+## Building
 
-On Windows, extract the entire build archive and run **lichii.exe**. Only use games and system files you have legally obtained. Games, keys and firmware are not included.
+- Visual Studio 2026 Build Tools (MSVC and the Windows SDK), Vulkan SDK, LLVM 22.1.8 (`clang-cl`,
+  `lld-link`, `llvm-rc`; MSYS2 CLANG64 works), CMake and Ninja.
+- The checkout path must have no spaces (the PGO profile path is passed in the compiler flags).
+- `zoot\build.bat` builds `eden-cli` with ThinLTO and Lichii's Ocarina PGO profile;
+  `zoot\package.ps1` freezes the launcher (Python 3.12, Pillow, PyInstaller) and makes the zip.
 
-### Existing saves and settings
+## Credits
 
-The rebrand intentionally retains the existing Eden/Eglantine data directories and configuration keys. It does not move or delete saves, settings or shader caches. Back up your saves before testing experimental builds.
+- [Lichii](https://github.com/zortos293/Lichii) by Zortos and contributors, a fork of
+  [Eglantine](https://github.com/Djihads80/Eglantine), from the Eden and yuzu projects.
+- Vulkan pipeline libraries and graphics warm-up: Lichii PR #741 by PantACRO4life.
+- Ocarina's Dynamic FPS routine by Dark, bundled in Lichii with permission.
+- Fonts: [Cinzel](https://github.com/NDISCOVER/Cinzel) and [Inter](https://rsms.me/inter/),
+  SIL Open Font License (`zoot\launcher\assets\fonts`).
+- ZooT-PC changes, launcher, loading screen, menu and icon: AjncSystem.
 
-## Compatibility and issue reports
+## License
 
-Compatibility and performance vary by game, hardware and driver. Rendering errors, stutters and crashes remain possible. Passing automated tests does not establish that a game renders correctly, and this project makes no universal frame-rate guarantee.
+GPL-3.0-or-later, as Lichii (`LICENSE.txt`, third-party licences in `LICENSES\`). The original
+Lichii README is kept as [README-Lichii.md](README-Lichii.md).
 
-Browse [community compatibility reports](https://lichii.zortos.me/reports) for results with each player's build and setup.
-
-Desktop reporting requires a build containing [PR #303](https://github.com/zortos293/Lichii/pull/303) and is not available in build 88. In builds that include it, play and stop a Switch 2 game, then right-click that game and choose **Submit compatibility report**. Only the latest session in the current Lichii process is eligible.
-
-Confirm the matching website catalog entry and review the editable machine, game, setup, and enabled add-on details prefilled where available. Check the public preview and give explicit consent before submitting. Nothing uploads automatically, and the native v1 reporter does not read or upload logs or files.
-
-When [reporting an issue](https://github.com/zortos293/Eglantine/issues), include:
-
-- The exact build, game version, CPU, GPU and driver version.
-- Relevant settings and steps to reproduce the problem.
-- A screenshot and the log from the affected session, after checking it for personal information.
-
-Do not upload game files, keys, firmware or private account information.
-
-## Building and contributing
-
-See the [build guide](docs/Build.md), [user documentation](docs/user/README.md) and [coding guidelines](docs/Coding.md). Some inherited documentation and internal build target names still use upstream names. The GUI build target remains `yuzu`; its output is `lichii.exe` on Windows and `lichii` on other desktop platforms.
-
-Keep changes focused and distinguish code-level checks from actual gameplay testing.
-
-## Artwork
-Art created by YOB (yobslab)
-The supplied Lichii logo, icon and library artwork are in [dist/branding](dist/branding). Windows, Linux and macOS icon resources are generated from that artwork by [Generate-LichiiIcons.ps1](tools/Generate-LichiiIcons.ps1).
-
-## Support Lichii
-
-Lichii is free and stays free. If you want to help, you can donate in crypto. Donations help pay for the AI tools and build machines used to develop this open-source project faster.
-
-**Solana (SOL)**
-```text
-JepEjfyWjGjhJvHSrqj52KtLjcbbbmUh1iGqerYBF4w
-```
-
-**Ethereum (ETH)**
-```text
-0x055ABa1b80Bc35C836Ce7E9F47c2b3d6C75b5534
-```
-
-**Bitcoin (BTC)**
-```text
-bc1qcvxdpf4qvdhqp8ee4s355cjmxrzsphsdwpl8w4
-```
-
-**BNB Smart Chain (BNB)**
-```text
-0x055ABa1b80Bc35C836Ce7E9F47c2b3d6C75b5534
-```
-
-**Polygon**
-```text
-0x055ABa1b80Bc35C836Ce7E9F47c2b3d6C75b5534
-```
-
-Send each coin on its matching network. Coins sent on the wrong network can't be recovered.
-
-> [!NOTE]
-> Donations are voluntary gifts and are non-refundable. A donation does not buy any product, service, perk, early access, exclusive build, priority support or say in the project. Every release stays free and public for everyone.
-
-## Credits and license
-
-Lichii inherits the work of the Eglantine, Eden, yuzu and Sudachi projects and their contributors, including Eglantine's original developer Camille LaVey. Original copyright notices and third-party licenses are retained.
-
-See [LICENSE.txt](LICENSE.txt) and the source files for applicable license terms.
+*The Legend of Zelda: Ocarina of Time* is a trademark of Nintendo. This project contains no
+Nintendo code or assets.
