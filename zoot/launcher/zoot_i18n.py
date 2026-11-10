@@ -1,145 +1,363 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Launcher texts. The key is the Portuguese text, as in the SotC-PC launcher; a text without a
-translation shows in Portuguese."""
+translation in the chosen language shows in English, then in Portuguese."""
 
 LANG = 'pt'
-LANGUAGES = [('Português', 'pt'), ('English', 'en'), ('Español', 'es')]
+LANGUAGES = [('Português', 'pt'), ('English', 'en'), ('Español', 'es'), ('Français', 'fr'),
+             ('日本語', 'ja'), ('한국어', 'ko'), ('Русский', 'ru')]
 
+# key (pt): {lang: text}
 T = {
-    'Jogar': ('Play', 'Jugar'),
-    'Jogo': ('Game', 'Juego'),
-    'Imagem e FPS': ('Display & FPS', 'Imagen y FPS'),
-    'Idioma': ('Language', 'Idioma'),
-    'Saves': ('Saves', 'Partidas'),
-    'Ajuda': ('Help', 'Ayuda'),
-    'Registro': ('Log', 'Registro'),
-    'port nativo · Windows': ('native port · Windows', 'port nativo · Windows'),
-    'Registro do jogo': ('Game log', 'Registro del juego'),
-    'Trocar jogo': ('Change game', 'Cambiar juego'),
-    'Configurar de novo': ('Set up again', 'Configurar de nuevo'),
-    'JOGAR': ('PLAY', 'JUGAR'),
-    'Bem-vindo! Escolha o arquivo do seu jogo para começar.':
-        ('Welcome! Choose your game file to begin.', '¡Bienvenido! Elige el archivo de tu juego para empezar.'),
-    'Formatos aceitos: .nup, .nx, .nsp, .xci':
-        ('Accepted formats: .nup, .nx, .nsp, .xci', 'Formatos aceptados: .nup, .nx, .nsp, .xci'),
-    'Usar o selecionado': ('Use the selected one', 'Usar el seleccionado'),
-    'Procurar arquivo...': ('Browse...', 'Buscar archivo...'),
-    'Procurando jogos...': ('Looking for games...', 'Buscando juegos...'),
-    '{n} arquivo(s) encontrado(s).': ('{n} file(s) found.', '{n} archivo(s) encontrado(s).'),
-    'Nenhum jogo encontrado: use "Procurar arquivo...".':
-        ('No game found: use "Browse...".', 'Ningún juego encontrado: usa "Buscar archivo...".'),
-    'Arquivo do jogo': ('Game file', 'Archivo del juego'),
-    'Jogos': ('Games', 'Juegos'),
-    'Todos': ('All', 'Todos'),
-    'Imagem': ('Picture', 'Imagen'),
-    'Resolução': ('Resolution', 'Resolución'),
-    'Filtro de escala': ('Scaling filter', 'Filtro de escalado'),
-    'Anti-serrilhado': ('Anti-aliasing', 'Antialiasing'),
-    'Proporção': ('Aspect ratio', 'Relación de aspecto'),
-    'Tela': ('Screen', 'Pantalla'),
-    'Tela cheia': ('Fullscreen', 'Pantalla completa'),
-    'Modo do console': ('Console mode', 'Modo de la consola'),
-    'Shaders': ('Shaders', 'Shaders'),
-    'Shaders sem travadas (GPL)': ('Stutter-free shaders (GPL)', 'Shaders sin tirones (GPL)'),
-    'Monta os shaders em partes e liga na hora: bem menos engasgo na 1ª vez.':
-        ('Builds shaders in parts and links them on the spot: far less stutter the first time.',
-         'Monta los shaders por partes y los enlaza al momento: muchos menos tirones la 1ª vez.'),
-    'Pré-compilar antes de jogar': ('Precompile before playing', 'Precompilar antes de jugar'),
-    'Na 1ª abertura (ou driver novo) prepara os shaders do jogo com tela de carregamento. Esc pula.':
-        ('On the first start (or a new driver) the game shaders are prepared on a loading screen. '
-         'Esc skips.',
-         'En el 1er inicio (o driver nuevo) prepara los shaders con pantalla de carga. Esc salta.'),
-    'Áudio': ('Audio', 'Audio'),
-    'Volume': ('Volume', 'Volumen'),
-    'Arquivo': ('File', 'Archivo'),
-    'Idioma do jogo': ('Game language', 'Idioma del juego'),
-    'Idioma do lançador': ('Launcher language', 'Idioma del lanzador'),
-    'O jogo usa o idioma do console. A região é ajustada sozinha.':
-        ('The game uses the console language. The region is set to match.',
-         'El juego usa el idioma de la consola. La región se ajusta sola.'),
-    'Se o jogo não tiver o idioma escolhido, ele usa o inglês.':
-        ('If the game lacks the chosen language, it uses English.',
-         'Si el juego no tiene el idioma elegido, usa el inglés.'),
-    'Pastas de save': ('Save slots', 'Ranuras de guardado'),
-    'Abrir pasta': ('Open folder', 'Abrir carpeta'),
-    'Fazer backup': ('Back up', 'Hacer copia'),
-    'Backup salvo em:': ('Backup saved to:', 'Copia guardada en:'),
-    'Nenhum save ainda: jogue uma vez.': ('No saves yet: play once.', 'Aún no hay partidas: juega una vez.'),
-    'Atualizar': ('Refresh', 'Actualizar'),
-    'Abrir arquivo': ('Open file', 'Abrir archivo'),
-    'Ainda não há registro: jogue uma vez.': ('No log yet: play once.', 'Aún no hay registro: juega una vez.'),
-    'Shaders prontos.': ('Shaders ready.', 'Shaders listos.'),
-    '1ª abertura: os shaders serão preparados (alguns minutos).':
-        ('First start: the shaders will be prepared (a few minutes).',
-         '1er inicio: los shaders se prepararán (unos minutos).'),
-    'eden-cli.exe não encontrado em {path}': ('eden-cli.exe not found in {path}',
-                                               'eden-cli.exe no encontrado en {path}'),
-    'Jogo em execução...': ('Game running...', 'Juego en ejecución...'),
-    'Não foi possível iniciar o jogo:': ('Could not start the game:', 'No se pudo iniciar el juego:'),
-    'O jogo fechou com o código {code}.': ('The game closed with code {code}.',
-                                            'El juego se cerró con el código {code}.'),
-    'Últimas linhas do registro:': ('Last log lines:', 'Últimas líneas del registro:'),
-    'Erro no lançador:': ('Launcher error:', 'Error del lanzador:'),
-    'Detalhes em user\\zoot\\launcher.log': ('Details in user\\zoot\\launcher.log',
-                                              'Detalles en user\\zoot\\launcher.log'),
-    'Nenhum': ('None', 'Ninguno'),
-    'Desligado': ('Off', 'Apagado'),
-    'Ligado (FIFO)': ('On (FIFO)', 'Activado (FIFO)'),
-    'FIFO relaxado': ('Relaxed FIFO', 'FIFO relajado'),
-    'Esticar': ('Stretch', 'Estirar'),
-    'Portátil': ('Handheld', 'Portátil'),
-    'Bicúbico': ('Bicubic', 'Bicúbico'),
-    'Área': ('Area', 'Área'),
-    'Ajustes rápidos': ('Quick settings', 'Ajustes rápidos'),
-    'Verificação': ('Ready check', 'Verificación'),
-    'Jogo encontrado': ('Game found', 'Juego encontrado'),
-    'Jogo não encontrado': ('Game not found', 'Juego no encontrado'),
-    'Núcleo do jogo (eden-cli) presente': ('Game core (eden-cli) present',
-                                           'Núcleo del juego (eden-cli) presente'),
-    'eden-cli.exe ausente': ('eden-cli.exe missing', 'Falta eden-cli.exe'),
-    'Shaders prontos': ('Shaders ready', 'Shaders listos'),
-    'Shaders serão preparados na 1ª abertura': ('Shaders will be prepared on the first start',
-                                                'Los shaders se prepararán en el 1er inicio'),
+    'Jogar': {'en': 'Play', 'es': 'Jugar', 'fr': 'Jouer', 'ja': 'プレイ', 'ko': '플레이',
+              'ru': 'Играть'},
+    'Jogo': {'en': 'Game', 'es': 'Juego', 'fr': 'Jeu', 'ja': 'ゲーム', 'ko': '게임', 'ru': 'Игра'},
+    'Imagem e FPS': {'en': 'Display & FPS', 'es': 'Imagen y FPS', 'fr': 'Affichage et FPS',
+                     'ja': '画面とFPS', 'ko': '화면 및 FPS', 'ru': 'Изображение и FPS'},
+    'Idioma': {'en': 'Language', 'es': 'Idioma', 'fr': 'Langue', 'ja': '言語', 'ko': '언어',
+               'ru': 'Язык'},
+    'Saves': {'en': 'Saves', 'es': 'Partidas', 'fr': 'Sauvegardes', 'ja': 'セーブ', 'ko': '세이브',
+              'ru': 'Сохранения'},
+    'Ajuda': {'en': 'Help', 'es': 'Ayuda', 'fr': 'Aide', 'ja': 'ヘルプ', 'ko': '도움말',
+              'ru': 'Справка'},
+    'Registro': {'en': 'Log', 'es': 'Registro', 'fr': 'Journal', 'ja': 'ログ', 'ko': '로그',
+                 'ru': 'Журнал'},
+    'port nativo · Windows': {'en': 'native port · Windows', 'es': 'port nativo · Windows',
+                              'fr': 'portage natif · Windows', 'ja': 'ネイティブ移植 · Windows',
+                              'ko': '네이티브 포트 · Windows', 'ru': 'нативный порт · Windows'},
+    'Registro do jogo': {'en': 'Game log', 'es': 'Registro del juego', 'fr': 'Journal du jeu',
+                         'ja': 'ゲームのログ', 'ko': '게임 로그', 'ru': 'Журнал игры'},
+    'Trocar jogo': {'en': 'Change game', 'es': 'Cambiar juego', 'fr': 'Changer de jeu',
+                    'ja': 'ゲームを変更', 'ko': '게임 변경', 'ru': 'Сменить игру'},
+    'Configurar de novo': {'en': 'Set up again', 'es': 'Configurar de nuevo',
+                           'fr': 'Reconfigurer', 'ja': '最初から設定', 'ko': '다시 설정',
+                           'ru': 'Настроить заново'},
+    'JOGAR': {'en': 'PLAY', 'es': 'JUGAR', 'fr': 'JOUER', 'ja': 'プレイ', 'ko': '플레이',
+              'ru': 'ИГРАТЬ'},
+    'Bem-vindo! Escolha o arquivo do seu jogo para começar.': {
+        'en': 'Welcome! Choose your game file to begin.',
+        'es': '¡Bienvenido! Elige el archivo de tu juego para empezar.',
+        'fr': 'Bienvenue ! Choisissez le fichier de votre jeu pour commencer.',
+        'ja': 'ようこそ！ゲームのファイルを選んで始めましょう。',
+        'ko': '환영합니다! 게임 파일을 선택해 시작하세요.',
+        'ru': 'Добро пожаловать! Выберите файл игры, чтобы начать.'},
+    'Formatos aceitos: .nup, .nx, .nsp, .xci': {
+        'en': 'Accepted formats: .nup, .nx, .nsp, .xci',
+        'es': 'Formatos aceptados: .nup, .nx, .nsp, .xci',
+        'fr': 'Formats acceptés : .nup, .nx, .nsp, .xci',
+        'ja': '対応形式: .nup, .nx, .nsp, .xci', 'ko': '지원 형식: .nup, .nx, .nsp, .xci',
+        'ru': 'Поддерживаемые форматы: .nup, .nx, .nsp, .xci'},
+    'Usar o selecionado': {'en': 'Use the selected one', 'es': 'Usar el seleccionado',
+                           'fr': 'Utiliser la sélection', 'ja': '選択したものを使う',
+                           'ko': '선택한 파일 사용', 'ru': 'Использовать выбранный'},
+    'Procurar arquivo...': {'en': 'Browse...', 'es': 'Buscar archivo...',
+                            'fr': 'Parcourir...', 'ja': 'ファイルを参照...', 'ko': '파일 찾기...',
+                            'ru': 'Обзор...'},
+    'Procurando jogos...': {'en': 'Looking for games...', 'es': 'Buscando juegos...',
+                            'fr': 'Recherche de jeux...', 'ja': 'ゲームを検索中...',
+                            'ko': '게임 검색 중...', 'ru': 'Поиск игр...'},
+    '{n} arquivo(s) encontrado(s).': {'en': '{n} file(s) found.',
+                                       'es': '{n} archivo(s) encontrado(s).',
+                                       'fr': '{n} fichier(s) trouvé(s).',
+                                       'ja': '{n} 個のファイルが見つかりました。',
+                                       'ko': '파일 {n}개를 찾았습니다.',
+                                       'ru': 'Найдено файлов: {n}.'},
+    'Nenhum jogo encontrado: use "Procurar arquivo...".': {
+        'en': 'No game found: use "Browse...".',
+        'es': 'Ningún juego encontrado: usa "Buscar archivo...".',
+        'fr': 'Aucun jeu trouvé : utilisez « Parcourir... ».',
+        'ja': 'ゲームが見つかりません。「ファイルを参照...」を使ってください。',
+        'ko': '게임을 찾지 못했습니다. "파일 찾기..."를 사용하세요.',
+        'ru': 'Игры не найдены: нажмите «Обзор...».'},
+    'Arquivo do jogo': {'en': 'Game file', 'es': 'Archivo del juego', 'fr': 'Fichier du jeu',
+                        'ja': 'ゲームファイル', 'ko': '게임 파일', 'ru': 'Файл игры'},
+    'Jogos': {'en': 'Games', 'es': 'Juegos', 'fr': 'Jeux', 'ja': 'ゲーム', 'ko': '게임',
+              'ru': 'Игры'},
+    'Todos': {'en': 'All', 'es': 'Todos', 'fr': 'Tous', 'ja': 'すべて', 'ko': '모두', 'ru': 'Все'},
+    'Imagem': {'en': 'Picture', 'es': 'Imagen', 'fr': 'Image', 'ja': '画質', 'ko': '화질',
+               'ru': 'Изображение'},
+    'Resolução': {'en': 'Resolution', 'es': 'Resolución', 'fr': 'Résolution', 'ja': '解像度',
+                  'ko': '해상도', 'ru': 'Разрешение'},
+    'Filtro de escala': {'en': 'Scaling filter', 'es': 'Filtro de escalado',
+                         'fr': 'Filtre de mise à l’échelle', 'ja': 'スケーリングフィルター',
+                         'ko': '스케일링 필터', 'ru': 'Фильтр масштабирования'},
+    'Anti-serrilhado': {'en': 'Anti-aliasing', 'es': 'Antialiasing', 'fr': 'Anticrénelage',
+                        'ja': 'アンチエイリアス', 'ko': '안티앨리어싱', 'ru': 'Сглаживание'},
+    'Proporção': {'en': 'Aspect ratio', 'es': 'Relación de aspecto', 'fr': 'Format d’image',
+                  'ja': 'アスペクト比', 'ko': '화면 비율', 'ru': 'Соотношение сторон'},
+    'Tela': {'en': 'Screen', 'es': 'Pantalla', 'fr': 'Écran', 'ja': '画面', 'ko': '화면',
+             'ru': 'Экран'},
+    'Tela cheia': {'en': 'Fullscreen', 'es': 'Pantalla completa', 'fr': 'Plein écran',
+                   'ja': 'フルスクリーン', 'ko': '전체 화면', 'ru': 'Полный экран'},
+    'Modo do console': {'en': 'Console mode', 'es': 'Modo de la consola',
+                        'fr': 'Mode de la console', 'ja': '本体モード', 'ko': '본체 모드',
+                        'ru': 'Режим консоли'},
+    'Shaders': {'en': 'Shaders', 'es': 'Shaders', 'fr': 'Shaders', 'ja': 'シェーダー',
+                'ko': '셰이더', 'ru': 'Шейдеры'},
+    'Shaders sem travadas (GPL)': {'en': 'Stutter-free shaders (GPL)',
+                                   'es': 'Shaders sin tirones (GPL)',
+                                   'fr': 'Shaders sans saccades (GPL)',
+                                   'ja': 'カクつかないシェーダー (GPL)',
+                                   'ko': '끊김 없는 셰이더 (GPL)',
+                                   'ru': 'Шейдеры без фризов (GPL)'},
+    'Monta os shaders em partes e liga na hora: bem menos engasgo na 1ª vez.': {
+        'en': 'Builds shaders in parts and links them on the spot: far less stutter the first '
+              'time.',
+        'es': 'Monta los shaders por partes y los enlaza al momento: muchos menos tirones la '
+              '1ª vez.',
+        'fr': 'Construit les shaders par parties et les lie à la volée : beaucoup moins de '
+              'saccades la 1re fois.',
+        'ja': 'シェーダーを部品ごとに作り、その場で結合します。初回のカクつきが大きく減ります。',
+        'ko': '셰이더를 부분별로 만들어 즉시 연결합니다. 처음의 끊김이 크게 줄어듭니다.',
+        'ru': 'Собирает шейдеры по частям и связывает на лету: гораздо меньше фризов в первый '
+              'раз.'},
+    'Pré-compilar antes de jogar': {'en': 'Precompile before playing',
+                                    'es': 'Precompilar antes de jugar',
+                                    'fr': 'Précompiler avant de jouer',
+                                    'ja': 'プレイ前にプリコンパイル',
+                                    'ko': '플레이 전에 미리 컴파일',
+                                    'ru': 'Предкомпиляция перед игрой'},
+    'Na 1ª abertura (ou driver novo) prepara os shaders do jogo com tela de carregamento. Esc pula.': {
+        'en': 'On the first start (or a new driver) the game shaders are prepared on a loading '
+              'screen. Esc skips.',
+        'es': 'En el 1er inicio (o driver nuevo) prepara los shaders con pantalla de carga. '
+              'Esc salta.',
+        'fr': 'Au 1er lancement (ou nouveau pilote), les shaders sont préparés sur un écran de '
+              'chargement. Échap passe.',
+        'ja': '初回起動時（またはドライバー更新後）にロード画面でシェーダーを準備します。Esc でスキップ。',
+        'ko': '첫 실행 시(또는 드라이버 변경 후) 로딩 화면에서 셰이더를 준비합니다. Esc로 건너뜁니다.',
+        'ru': 'При первом запуске (или новом драйвере) шейдеры готовятся на экране загрузки. '
+              'Esc — пропустить.'},
+    'Áudio': {'en': 'Audio', 'es': 'Audio', 'fr': 'Audio', 'ja': 'オーディオ', 'ko': '오디오',
+              'ru': 'Звук'},
+    'Volume': {'en': 'Volume', 'es': 'Volumen', 'fr': 'Volume', 'ja': '音量', 'ko': '음량',
+               'ru': 'Громкость'},
+    'Arquivo': {'en': 'File', 'es': 'Archivo', 'fr': 'Fichier', 'ja': 'ファイル', 'ko': '파일',
+                'ru': 'Файл'},
+    'Idioma do jogo': {'en': 'Game language', 'es': 'Idioma del juego', 'fr': 'Langue du jeu',
+                       'ja': 'ゲームの言語', 'ko': '게임 언어', 'ru': 'Язык игры'},
+    'Idioma do lançador': {'en': 'Launcher language', 'es': 'Idioma del lanzador',
+                           'fr': 'Langue du lanceur', 'ja': 'ランチャーの言語',
+                           'ko': '런처 언어', 'ru': 'Язык лаунчера'},
+    'O jogo usa o idioma do console. A região é ajustada sozinha.': {
+        'en': 'The game uses the console language. The region is set to match.',
+        'es': 'El juego usa el idioma de la consola. La región se ajusta sola.',
+        'fr': 'Le jeu utilise la langue de la console. La région s’ajuste toute seule.',
+        'ja': 'ゲームは本体の言語を使います。地域は自動で合わせます。',
+        'ko': '게임은 본체 언어를 사용합니다. 지역은 자동으로 맞춰집니다.',
+        'ru': 'Игра использует язык консоли. Регион подстраивается сам.'},
+    'Se o jogo não tiver o idioma escolhido, ele usa o inglês.': {
+        'en': 'If the game lacks the chosen language, it uses English.',
+        'es': 'Si el juego no tiene el idioma elegido, usa el inglés.',
+        'fr': 'Si le jeu n’a pas la langue choisie, il utilise l’anglais.',
+        'ja': '選んだ言語がゲームにない場合は英語になります。',
+        'ko': '선택한 언어가 게임에 없으면 영어를 사용합니다.',
+        'ru': 'Если в игре нет выбранного языка, используется английский.'},
+    'Pastas de save': {'en': 'Save slots', 'es': 'Ranuras de guardado',
+                       'fr': 'Emplacements de sauvegarde', 'ja': 'セーブスロット',
+                       'ko': '세이브 슬롯', 'ru': 'Слоты сохранений'},
+    'Abrir pasta': {'en': 'Open folder', 'es': 'Abrir carpeta', 'fr': 'Ouvrir le dossier',
+                    'ja': 'フォルダーを開く', 'ko': '폴더 열기', 'ru': 'Открыть папку'},
+    'Fazer backup': {'en': 'Back up', 'es': 'Hacer copia', 'fr': 'Sauvegarder',
+                     'ja': 'バックアップ', 'ko': '백업', 'ru': 'Резервная копия'},
+    'Backup salvo em:': {'en': 'Backup saved to:', 'es': 'Copia guardada en:',
+                         'fr': 'Sauvegarde enregistrée dans :', 'ja': 'バックアップの保存先:',
+                         'ko': '백업 저장 위치:', 'ru': 'Копия сохранена в:'},
+    'Nenhum save ainda: jogue uma vez.': {'en': 'No saves yet: play once.',
+                                          'es': 'Aún no hay partidas: juega una vez.',
+                                          'fr': 'Aucune sauvegarde : jouez une fois.',
+                                          'ja': 'セーブはまだありません。一度プレイしてください。',
+                                          'ko': '아직 세이브가 없습니다. 한 번 플레이하세요.',
+                                          'ru': 'Сохранений пока нет: сыграйте один раз.'},
+    'Atualizar': {'en': 'Refresh', 'es': 'Actualizar', 'fr': 'Actualiser', 'ja': '更新',
+                  'ko': '새로 고침', 'ru': 'Обновить'},
+    'Abrir arquivo': {'en': 'Open file', 'es': 'Abrir archivo', 'fr': 'Ouvrir le fichier',
+                      'ja': 'ファイルを開く', 'ko': '파일 열기', 'ru': 'Открыть файл'},
+    'Ainda não há registro: jogue uma vez.': {'en': 'No log yet: play once.',
+                                              'es': 'Aún no hay registro: juega una vez.',
+                                              'fr': 'Pas encore de journal : jouez une fois.',
+                                              'ja': 'ログはまだありません。一度プレイしてください。',
+                                              'ko': '아직 로그가 없습니다. 한 번 플레이하세요.',
+                                              'ru': 'Журнала пока нет: сыграйте один раз.'},
+    'Shaders prontos.': {'en': 'Shaders ready.', 'es': 'Shaders listos.',
+                         'fr': 'Shaders prêts.', 'ja': 'シェーダーの準備完了。',
+                         'ko': '셰이더 준비 완료.', 'ru': 'Шейдеры готовы.'},
+    '1ª abertura: os shaders serão preparados (alguns minutos).': {
+        'en': 'First start: the shaders will be prepared (a few minutes).',
+        'es': '1er inicio: los shaders se prepararán (unos minutos).',
+        'fr': '1er lancement : les shaders seront préparés (quelques minutes).',
+        'ja': '初回起動: シェーダーを準備します（数分）。',
+        'ko': '첫 실행: 셰이더를 준비합니다(몇 분).',
+        'ru': 'Первый запуск: шейдеры будут подготовлены (несколько минут).'},
+    'eden-cli.exe não encontrado em {path}': {'en': 'eden-cli.exe not found in {path}',
+                                               'es': 'eden-cli.exe no encontrado en {path}',
+                                               'fr': 'eden-cli.exe introuvable dans {path}',
+                                               'ja': '{path} に eden-cli.exe がありません',
+                                               'ko': '{path}에 eden-cli.exe가 없습니다',
+                                               'ru': 'eden-cli.exe не найден в {path}'},
+    'Jogo em execução...': {'en': 'Game running...', 'es': 'Juego en ejecución...',
+                            'fr': 'Jeu en cours...', 'ja': 'ゲーム実行中...',
+                            'ko': '게임 실행 중...', 'ru': 'Игра запущена...'},
+    'Não foi possível iniciar o jogo:': {'en': 'Could not start the game:',
+                                         'es': 'No se pudo iniciar el juego:',
+                                         'fr': 'Impossible de lancer le jeu :',
+                                         'ja': 'ゲームを起動できませんでした:',
+                                         'ko': '게임을 시작할 수 없습니다:',
+                                         'ru': 'Не удалось запустить игру:'},
+    'O jogo fechou com o código {code}.': {'en': 'The game closed with code {code}.',
+                                            'es': 'El juego se cerró con el código {code}.',
+                                            'fr': 'Le jeu s’est fermé avec le code {code}.',
+                                            'ja': 'ゲームがコード {code} で終了しました。',
+                                            'ko': '게임이 코드 {code}로 종료되었습니다.',
+                                            'ru': 'Игра закрылась с кодом {code}.'},
+    'Últimas linhas do registro:': {'en': 'Last log lines:',
+                                    'es': 'Últimas líneas del registro:',
+                                    'fr': 'Dernières lignes du journal :',
+                                    'ja': 'ログの最後の行:', 'ko': '로그의 마지막 줄:',
+                                    'ru': 'Последние строки журнала:'},
+    'Erro no lançador:': {'en': 'Launcher error:', 'es': 'Error del lanzador:',
+                          'fr': 'Erreur du lanceur :', 'ja': 'ランチャーのエラー:',
+                          'ko': '런처 오류:', 'ru': 'Ошибка лаунчера:'},
+    'Detalhes em user\\zoot\\launcher.log': {
+        'en': 'Details in user\\zoot\\launcher.log', 'es': 'Detalles en user\\zoot\\launcher.log',
+        'fr': 'Détails dans user\\zoot\\launcher.log', 'ja': '詳細: user\\zoot\\launcher.log',
+        'ko': '자세한 내용: user\\zoot\\launcher.log',
+        'ru': 'Подробности в user\\zoot\\launcher.log'},
+    'Ajustes rápidos': {'en': 'Quick settings', 'es': 'Ajustes rápidos',
+                        'fr': 'Réglages rapides', 'ja': 'クイック設定', 'ko': '빠른 설정',
+                        'ru': 'Быстрые настройки'},
+    'Verificação': {'en': 'Ready check', 'es': 'Verificación', 'fr': 'Vérification',
+                    'ja': '準備チェック', 'ko': '준비 확인', 'ru': 'Проверка'},
+    'Jogo encontrado': {'en': 'Game found', 'es': 'Juego encontrado', 'fr': 'Jeu trouvé',
+                        'ja': 'ゲームを確認', 'ko': '게임 확인됨', 'ru': 'Игра найдена'},
+    'Jogo não encontrado': {'en': 'Game not found', 'es': 'Juego no encontrado',
+                            'fr': 'Jeu introuvable', 'ja': 'ゲームが見つかりません',
+                            'ko': '게임을 찾을 수 없음', 'ru': 'Игра не найдена'},
+    'Núcleo do jogo (eden-cli) presente': {'en': 'Game core (eden-cli) present',
+                                           'es': 'Núcleo del juego (eden-cli) presente',
+                                           'fr': 'Cœur du jeu (eden-cli) présent',
+                                           'ja': 'ゲームコア (eden-cli) あり',
+                                           'ko': '게임 코어 (eden-cli) 있음',
+                                           'ru': 'Ядро игры (eden-cli) на месте'},
+    'eden-cli.exe ausente': {'en': 'eden-cli.exe missing', 'es': 'Falta eden-cli.exe',
+                             'fr': 'eden-cli.exe manquant', 'ja': 'eden-cli.exe がありません',
+                             'ko': 'eden-cli.exe 없음', 'ru': 'Нет eden-cli.exe'},
+    'Shaders prontos': {'en': 'Shaders ready', 'es': 'Shaders listos', 'fr': 'Shaders prêts',
+                        'ja': 'シェーダー準備完了', 'ko': '셰이더 준비 완료',
+                        'ru': 'Шейдеры готовы'},
+    'Shaders serão preparados na 1ª abertura': {
+        'en': 'Shaders will be prepared on the first start',
+        'es': 'Los shaders se prepararán en el 1er inicio',
+        'fr': 'Les shaders seront préparés au 1er lancement',
+        'ja': 'シェーダーは初回起動時に準備されます',
+        'ko': '셰이더는 첫 실행 때 준비됩니다',
+        'ru': 'Шейдеры будут подготовлены при первом запуске'},
+    'Nenhum': {'en': 'None', 'es': 'Ninguno', 'fr': 'Aucun', 'ja': 'なし', 'ko': '없음',
+               'ru': 'Нет'},
+    'Desligado': {'en': 'Off', 'es': 'Apagado', 'fr': 'Désactivé', 'ja': 'オフ', 'ko': '끔',
+                  'ru': 'Выкл.'},
+    'Ligado (FIFO)': {'en': 'On (FIFO)', 'es': 'Activado (FIFO)', 'fr': 'Activé (FIFO)',
+                      'ja': 'オン (FIFO)', 'ko': '켬 (FIFO)', 'ru': 'Вкл. (FIFO)'},
+    'FIFO relaxado': {'en': 'Relaxed FIFO', 'es': 'FIFO relajado', 'fr': 'FIFO relâché',
+                      'ja': 'FIFO (緩和)', 'ko': 'FIFO (완화)', 'ru': 'Ослабленный FIFO'},
+    'Esticar': {'en': 'Stretch', 'es': 'Estirar', 'fr': 'Étirer', 'ja': '引き伸ばし',
+                'ko': '늘리기', 'ru': 'Растянуть'},
+    'Portátil': {'en': 'Handheld', 'es': 'Portátil', 'fr': 'Portable', 'ja': '携帯モード',
+                 'ko': '휴대 모드', 'ru': 'Портативный'},
+    'TV (dock)': {'en': 'TV (docked)', 'fr': 'TV (station)', 'ja': 'TVモード', 'ko': 'TV 모드',
+                  'ru': 'ТВ (док)'},
+    'Bicúbico': {'en': 'Bicubic', 'es': 'Bicúbico', 'fr': 'Bicubique', 'ja': 'バイキュービック',
+                 'ko': '바이큐빅', 'ru': 'Бикубический'},
+    'Área': {'en': 'Area', 'es': 'Área', 'fr': 'Zone', 'ja': 'エリア', 'ko': '영역',
+             'ru': 'Область'},
 }
 
 HELP = {
     'pt': [
-        ('Como jogar', 'Na primeira vez escolha o arquivo do seu jogo (.nup, .nx, .nsp ou .xci) e aperte '
-                       'JOGAR. Os shaders são preparados numa tela de carregamento (alguns minutos, uma vez só; '
-                       'Esc pula).'),
-        ('Engasgos', 'Deixe ligados "Shaders sem travadas (GPL)" e "Pré-compilar antes de jogar". Cada efeito '
-                     'novo é preparado uma vez e fica guardado em user\\cache.'),
-        ('Capa e ícone', 'Coloque sua imagem em user\\zoot\\capa.png (ou .jpg) para o cartão do jogo, e '
-                         'user\\zoot\\icon.png para o ícone da janela. Ficam só no seu PC.'),
-        ('O que não vem no pacote', 'O ZooT-PC não traz o jogo, chaves, firmware nem arte da Nintendo: '
-                                    'use a sua própria cópia.'),
+        ('Como jogar', 'Na primeira vez escolha o arquivo do seu jogo (.nup, .nx, .nsp ou .xci) e '
+                       'aperte JOGAR. Os shaders são preparados numa tela de carregamento (alguns '
+                       'minutos, uma vez só; Esc pula).'),
+        ('Engasgos', 'Deixe ligados "Shaders sem travadas (GPL)" e "Pré-compilar antes de jogar". '
+                     'Cada efeito novo é preparado uma vez e fica guardado em user\\cache.'),
+        ('Capa e ícone', 'Coloque sua imagem em user\\zoot\\capa.png (ou .jpg) para o cartão do '
+                         'jogo, e user\\zoot\\icon.png para o ícone da janela. Ficam só no seu PC.'),
+        ('O que não vem no pacote', 'O ZooT-PC não traz o jogo, chaves, firmware nem arte da '
+                                    'Nintendo: use a sua própria cópia.'),
     ],
     'en': [
-        ('How to play', 'The first time, choose your game file (.nup, .nx, .nsp or .xci) and press PLAY. '
-                        'The shaders are prepared on a loading screen (a few minutes, once; Esc skips).'),
-        ('Stutter', 'Keep "Stutter-free shaders (GPL)" and "Precompile before playing" on. Each new effect is '
-                    'prepared once and kept in user\\cache.'),
-        ('Cover and icon', 'Put your picture in user\\zoot\\capa.png (or .jpg) for the game card, and '
-                           'user\\zoot\\icon.png for the window icon. They stay on your PC.'),
-        ('Not in the package', 'ZooT-PC ships no game, keys, firmware or Nintendo art: use your own copy.'),
+        ('How to play', 'The first time, choose your game file (.nup, .nx, .nsp or .xci) and press '
+                        'PLAY. The shaders are prepared on a loading screen (a few minutes, once; '
+                        'Esc skips).'),
+        ('Stutter', 'Keep "Stutter-free shaders (GPL)" and "Precompile before playing" on. Each new '
+                    'effect is prepared once and kept in user\\cache.'),
+        ('Cover and icon', 'Put your picture in user\\zoot\\capa.png (or .jpg) for the game card, '
+                           'and user\\zoot\\icon.png for the window icon. They stay on your PC.'),
+        ('Not in the package', 'ZooT-PC ships no game, keys, firmware or Nintendo art: use your own '
+                               'copy.'),
     ],
     'es': [
-        ('Cómo jugar', 'La primera vez elige el archivo de tu juego (.nup, .nx, .nsp o .xci) y pulsa JUGAR. '
-                       'Los shaders se preparan en una pantalla de carga (unos minutos, una sola vez; Esc salta).'),
-        ('Tirones', 'Deja activados "Shaders sin tirones (GPL)" y "Precompilar antes de jugar". Cada efecto '
-                    'nuevo se prepara una vez y queda en user\\cache.'),
-        ('Portada e icono', 'Pon tu imagen en user\\zoot\\capa.png (o .jpg) para la tarjeta del juego, y '
-                            'user\\zoot\\icon.png para el icono de la ventana. Se quedan en tu PC.'),
-        ('Lo que no incluye', 'ZooT-PC no trae el juego, claves, firmware ni arte de Nintendo: usa tu copia.'),
+        ('Cómo jugar', 'La primera vez elige el archivo de tu juego (.nup, .nx, .nsp o .xci) y pulsa '
+                       'JUGAR. Los shaders se preparan en una pantalla de carga (unos minutos, una '
+                       'sola vez; Esc salta).'),
+        ('Tirones', 'Deja activados "Shaders sin tirones (GPL)" y "Precompilar antes de jugar". Cada '
+                    'efecto nuevo se prepara una vez y queda en user\\cache.'),
+        ('Portada e icono', 'Pon tu imagen en user\\zoot\\capa.png (o .jpg) para la tarjeta del '
+                            'juego, y user\\zoot\\icon.png para el icono de la ventana. Se quedan en '
+                            'tu PC.'),
+        ('Lo que no incluye', 'ZooT-PC no trae el juego, claves, firmware ni arte de Nintendo: usa '
+                              'tu copia.'),
+    ],
+    'fr': [
+        ('Comment jouer', 'La première fois, choisissez le fichier de votre jeu (.nup, .nx, .nsp ou '
+                          '.xci) et appuyez sur JOUER. Les shaders sont préparés sur un écran de '
+                          'chargement (quelques minutes, une seule fois ; Échap passe).'),
+        ('Saccades', 'Laissez activés « Shaders sans saccades (GPL) » et « Précompiler avant de '
+                     'jouer ». Chaque nouvel effet est préparé une fois et gardé dans user\\cache.'),
+        ('Jaquette et icône', 'Placez votre image dans user\\zoot\\capa.png (ou .jpg) pour la carte '
+                              'du jeu, et user\\zoot\\icon.png pour l’icône de la fenêtre. Elles '
+                              'restent sur votre PC.'),
+        ('Non inclus', 'ZooT-PC ne fournit ni le jeu, ni les clés, ni le firmware, ni d’image de '
+                       'Nintendo : utilisez votre propre copie.'),
+    ],
+    'ja': [
+        ('遊び方', '初回はゲームのファイル（.nup、.nx、.nsp、.xci）を選び、「プレイ」を押します。'
+                   'シェーダーはロード画面で準備されます（数分・初回のみ。Esc でスキップ）。'),
+        ('カクつき', '「カクつかないシェーダー (GPL)」と「プレイ前にプリコンパイル」をオンのままに'
+                     'してください。新しい効果は一度だけ準備され、user\\cache に保存されます。'),
+        ('カバーとアイコン', 'ゲームカードの画像は user\\zoot\\capa.png（または .jpg）、ウィンドウ'
+                             'のアイコンは user\\zoot\\icon.png に置きます。あなたの PC にだけ'
+                             '残ります。'),
+        ('同梱されないもの', 'ZooT-PC にはゲーム、キー、ファームウェア、任天堂のアートは含まれ'
+                             'ません。ご自身のコピーを使ってください。'),
+    ],
+    'ko': [
+        ('플레이 방법', '처음에는 게임 파일(.nup, .nx, .nsp 또는 .xci)을 선택하고 "플레이"를 '
+                        '누르세요. 셰이더는 로딩 화면에서 준비됩니다(몇 분, 한 번만; Esc로 '
+                        '건너뜀).'),
+        ('끊김', '"끊김 없는 셰이더 (GPL)"와 "플레이 전에 미리 컴파일"을 켜 두세요. 새로운 효과는 '
+                 '한 번만 준비되어 user\\cache에 저장됩니다.'),
+        ('커버와 아이콘', '게임 카드 이미지는 user\\zoot\\capa.png(또는 .jpg)에, 창 아이콘은 '
+                          'user\\zoot\\icon.png에 두세요. 내 PC에만 남습니다.'),
+        ('포함되지 않는 것', 'ZooT-PC에는 게임, 키, 펌웨어, 닌텐도 아트가 포함되지 않습니다. '
+                             '직접 가진 사본을 사용하세요.'),
+    ],
+    'ru': [
+        ('Как играть', 'В первый раз выберите файл игры (.nup, .nx, .nsp или .xci) и нажмите '
+                       '«ИГРАТЬ». Шейдеры готовятся на экране загрузки (несколько минут, один раз; '
+                       'Esc — пропустить).'),
+        ('Фризы', 'Оставьте включёнными «Шейдеры без фризов (GPL)» и «Предкомпиляция перед игрой». '
+                  'Каждый новый эффект готовится один раз и хранится в user\\cache.'),
+        ('Обложка и значок', 'Положите свою картинку в user\\zoot\\capa.png (или .jpg) для карточки '
+                             'игры и user\\zoot\\icon.png для значка окна. Они остаются только на '
+                             'вашем ПК.'),
+        ('Чего нет в пакете', 'ZooT-PC не содержит игру, ключи, прошивку и арт Nintendo: используйте '
+                              'свою копию.'),
     ],
 }
 
 
 def _(text, **kw):
     if LANG != 'pt':
-        pair = T.get(text)
-        if pair:
-            i = 0 if LANG == 'en' else 1
-            if pair[i]:
-                text = pair[i]
+        tr = T.get(text)
+        if tr:
+            text = tr.get(LANG) or tr.get('en') or text
     return text.format(**kw) if kw else text

@@ -48,14 +48,38 @@ def pill(w, h, fill, outline, bg):
     return ImageTk.PhotoImage(big.resize((w, h), Image.LANCZOS))
 
 
-def load_fonts(root):
-    global HEAD, HEAD_BOLD, BODY, BODY_SEMI, ICONS
+FONTS_LOADED = False
+
+
+def load_fonts(root, lang='pt'):
+    """Picks the fonts for the launcher language. Cinzel and Inter are Latin (Inter also has
+    Cyrillic): Japanese and Korean use Windows' own UI fonts, Russian titles use Georgia."""
+    global HEAD, HEAD_BOLD, BODY, BODY_SEMI, ICONS, FONTS_LOADED
+    _load_bundled(root)
     import tkinter.font as tkfont
-    for path in sorted((ASSETS / 'fonts').glob('*.ttf')):
-        try:
-            ctypes.windll.gdi32.AddFontResourceExW(str(path), 0x10, 0)  # FR_PRIVATE
-        except (AttributeError, OSError):
-            pass
+    families = set(tkfont.families(root))
+    pick = lambda *names: next((n for n in names if n in families), names[-1])
+    if lang == 'ja':
+        BODY = BODY_SEMI = pick('Yu Gothic UI', 'Meiryo UI', 'Meiryo', 'MS UI Gothic')
+        HEAD = HEAD_BOLD = pick('Yu Gothic UI Semibold', 'Yu Gothic UI', 'Meiryo', 'MS UI Gothic')
+    elif lang == 'ko':
+        BODY = BODY_SEMI = pick('Malgun Gothic', 'Gulim')
+        HEAD = HEAD_BOLD = pick('Malgun Gothic Semilight', 'Malgun Gothic', 'Gulim')
+    elif lang == 'ru':
+        HEAD = HEAD_BOLD = pick('Georgia', 'Times New Roman')
+    ICONS = pick('Segoe Fluent Icons', 'Segoe MDL2 Assets')
+
+
+def _load_bundled(root):
+    global HEAD, HEAD_BOLD, BODY, BODY_SEMI, ICONS, FONTS_LOADED
+    import tkinter.font as tkfont
+    if not FONTS_LOADED:
+        for path in sorted((ASSETS / 'fonts').glob('*.ttf')):
+            try:
+                ctypes.windll.gdi32.AddFontResourceExW(str(path), 0x10, 0)  # FR_PRIVATE
+            except (AttributeError, OSError):
+                pass
+        FONTS_LOADED = True
     families = set(tkfont.families(root))
     pick = lambda *names: next((n for n in names if n in families), names[-1])
     HEAD = pick('Cinzel SemiBold', 'Georgia')

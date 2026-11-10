@@ -211,7 +211,7 @@ class Launcher(tk.Tk):
         self.report_callback_exception = self.report_error
         self.settings = load_settings()
         I18N.LANG = self.settings.get('launcher_language', 'pt')
-        T.load_fonts(self)
+        T.load_fonts(self, I18N.LANG)
         self.title(APP)
         self.configure(bg=T.NIGHT)
         self.geometry(f'{self.W}x{self.H}')
@@ -352,7 +352,8 @@ class Launcher(tk.Tk):
             side='left')
         tk.Frame(side, bg=T.GOLD, height=1, width=46).pack(anchor='w', padx=22, pady=(12, 8))
         tk.Label(side, text=f"{_('port nativo · Windows')}  ·  v{VERSION}", bg=T.SIDE,
-                 fg=T.MUTED, font=(T.BODY, 9)).pack(anchor='w', padx=22, pady=(0, 18))
+                 fg=T.MUTED, font=(T.BODY, 9), wraplength=190, justify='left').pack(
+            anchor='w', padx=22, pady=(0, 18))
 
         self.nav, self.current = {}, None
         w, h = 200, 38
@@ -517,7 +518,7 @@ class Launcher(tk.Tk):
         self.combo(side, 'filter', _('Filtro de escala'), FILTERS, width=15)
         self.combo(side, 'vsync', 'VSync', VSYNC, width=15)
         self.combo(side, 'mode', _('Modo do console'), MODE, width=15)
-        self.combo(side, 'game_language', _('Idioma do jogo'), GAME_LANGUAGES, width=15)
+        self.combo(side, 'game_language', _('Idioma do jogo'), GAME_LANGUAGES, width=19)
         self.switch(side, 'fullscreen', _('Tela cheia'))
         self.switch(side, 'gpl', _('Shaders sem travadas (GPL)'))
         self.switch(side, 'precache', _('Pré-compilar antes de jogar'))
@@ -626,6 +627,8 @@ class Launcher(tk.Tk):
 
     def change_launcher_language(self):
         I18N.LANG = self.settings['launcher_language']
+        T.load_fonts(self, I18N.LANG)
+        self.style = T.apply(self)
         self.after(10, lambda: (self.rebuild(), self.show('language')))
 
     def build_saves(self):
