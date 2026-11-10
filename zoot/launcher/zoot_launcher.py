@@ -29,6 +29,7 @@ if not getattr(sys, 'frozen', False):
 import zoot_i18n as I18N  # noqa: E402
 import zoot_controls as C  # noqa: E402
 import zoot_theme as T  # noqa: E402
+import zoot_update as U  # noqa: E402
 from zoot_i18n import _  # noqa: E402
 
 APP = 'ZooT-PC'
@@ -87,6 +88,7 @@ DEFAULTS = {
     'game': '', 'resolution': 3, 'filter': 15, 'aa': 1, 'aspect': 0, 'vsync': 2, 'mode': 1,
     'fullscreen': False, 'gpl': True, 'precache': True, 'volume': 100,
     'game_language': 17, 'launcher_language': 'pt', 'fps_mode': '60', 'sharpness': 25,
+    'auto_update': True, 'last_update_check': 0,
 }
 
 
@@ -285,7 +287,10 @@ class Launcher(tk.Tk):
         self.game_title = None
         self.style = T.apply(self)
         self.set_icon()
+        U.cleanup(ZDIR / 'update')  # an earlier update finished: this is the new launcher
         self.rebuild()
+        if self.settings.get('auto_update', True):
+            self.after(2500, lambda: self.check_updates(False))
 
     # ---- errors and icon ------------------------------------------------------------------------
     def report_error(self, exc, value, tb):
@@ -441,6 +446,7 @@ class Launcher(tk.Tk):
             self.nav_paint(name)
         tk.Frame(side, bg=T.SIDE).pack(fill='both', expand=True)
         for text, command in ((_('Registro do jogo'), lambda: self.show('log')),
+                              (_('Procurar atualização'), lambda: self.check_updates(True)),
                               (_('Trocar jogo'), self.show_setup),
                               (_('Configurar de novo'), self.reset_setup)):
             link = tk.Label(side, text=text, bg=T.SIDE, fg=T.MUTED,
@@ -469,6 +475,7 @@ class Launcher(tk.Tk):
 
         self.pages = {}
         self.mirrors = {}
+        self.bind_all('<MouseWheel>', self.wheel)
         self.build_play()
         self.build_game()
         self.build_graphics()
@@ -501,9 +508,35 @@ class Launcher(tk.Tk):
         elif name == 'saves':
             self.load_saves()
 
-    def page(self, name, title):
-        frame = tk.Frame(self.content, bg=T.NIGHT)
-        self.pages[name] = frame
+    def wheel(self, event):
+        """The mouse wheel scrolls the current settings page (not an open list or the log)."""
+        page = self.pages.get(self.current)
+        widget_class = event.widget.winfo_class() if hasattr(event.widget, 'winfo_class') else ''
+        if hasattr(page, 'scroll') and widget_class not in ('Text', 'Listbox', 'TCombobox') \
+                and 'popdown' not in str(event.widget):
+            page.scroll(int(-event.delta / 120))
+
+    def page(self, name, title, scroll=True):
+        """A page of the content area. Settings pages scroll with the mouse wheel, so new
+        options never fall off the window; Play and Log fill the window instead."""
+        if scroll:
+            outer = tk.Frame(self.content, bg=T.NIGHT)
+            canvas = tk.Canvas(outer, bg=T.NIGHT, highlightthickness=0, bd=0)
+            canvas.pack(fill='both', expand=True)
+            frame = tk.Frame(canvas, bg=T.NIGHT)
+            window = canvas.create_window(0, 0, window=frame, anchor='nw')
+            frame.bind('<Configure>',
+                       lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
+            canvas.bind('<Configure>', lambda e: canvas.itemconfigure(window, width=e.width))
+
+            def scroll_by(units):
+                if frame.winfo_height() > canvas.winfo_height():
+                    canvas.yview_scroll(units, 'units')
+            outer.scroll = scroll_by
+            self.pages[name] = outer
+        else:
+            frame = tk.Frame(self.content, bg=T.NIGHT)
+            self.pages[name] = frame
         if title:
             tk.Label(frame, text=title.upper(), font=(T.HEAD_BOLD, 17), fg=T.GOLD,
                      bg=T.NIGHT).pack(anchor='w', padx=30, pady=(24, 4))
@@ -561,7 +594,7 @@ class Launcher(tk.Tk):
     def build_play(self):
         """The cover on the left, and on the right, as in the SotC-PC launcher, the quick
         settings and the ready check."""
-        page = self.page('play', None)
+        page = self.page('play', None, scroll=False)
         side = tk.Frame(page, bg=T.PANEL, highlightthickness=1, highlightbackground=T.BORDER,
                         width=360)
         side.pack(side='right', fill='y', padx=(0, 30), pady=26)
@@ -659,7 +692,7 @@ class Launcher(tk.Tk):
         name = self.game_title or Path(self.settings['game']).stem
         size = 24 if w > 700 else 20
         c.create_text(30, h - 46, text=name, anchor='sw', font=(T.HEAD_BOLD, size),
-                      fill=T.TEXT, width=w - 60)
+                      fill=T.GOLD, width=w - 60)
         c.create_text(30, h - 28, text=Path(self.settings['game']).name, anchor='w',
                       font=(T.BODY, 9), fill=T.MUTED)
 
@@ -682,6 +715,23 @@ class Launcher(tk.Tk):
         tk.Label(row, text=self.settings['game'], font=(T.BODY, 9), fg=T.MUTED, bg=T.PANEL,
                  wraplength=560, justify='left').pack(side='left')
         T.Button(row, _('Trocar jogo'), self.show_setup, small=True).pack(side='right')
+        # The player's own cover for the game card and the loading screen (kept in user\zoot,
+        # never shipped).
+        box = self.card(page, _('Capa do jogo'))
+        row = tk.Frame(box, bg=T.PANEL)
+        row.pack(fill='x', padx=18, pady=(0, 12))
+        tk.Label(row, text=_('Uma imagem sua para o cartão do jogo e a tela de carregamento.'),
+                 font=(T.BODY, 9), fg=T.MUTED, bg=T.PANEL, wraplength=420,
+                 justify='left').pack(side='left')
+        T.Button(row, _('Remover'), self.remove_cover, small=True).pack(side='right')
+        T.Button(row, _('Escolher capa...'), self.choose_cover).pack(side='right', padx=8)
+        box = self.card(page, _('Atualizações'))
+        self.switch(box, 'auto_update', _('Procurar atualizações ao abrir'),
+                    _('Consulta as versões do ZooT-PC no GitHub uma vez por dia.'))
+        row = tk.Frame(box, bg=T.PANEL)
+        row.pack(fill='x', padx=18, pady=(2, 12))
+        T.Button(row, _('Procurar atualização'), lambda: self.check_updates(True)).pack(
+            side='left')
         box = self.card(page, _('Shaders'))
         self.switch(box, 'gpl', _('Shaders sem travadas (GPL)'),
                     _('Monta os shaders em partes e liga na hora: bem menos engasgo na 1ª vez.'))
@@ -1025,7 +1075,7 @@ class Launcher(tk.Tk):
                      justify='left').pack(anchor='w', padx=18, pady=(0, 14))
 
     def build_log(self):
-        page = self.page('log', _('Registro do jogo'))
+        page = self.page('log', _('Registro do jogo'), scroll=False)
         row = tk.Frame(page, bg=T.NIGHT)
         row.pack(fill='x', padx=30, pady=(0, 8))
         T.Button(row, _('Atualizar'), self.load_log, small=True).pack(side='left')
@@ -1051,6 +1101,132 @@ class Launcher(tk.Tk):
             os.startfile(LOG)
         else:
             messagebox.showinfo(APP, _('Ainda não há registro: jogue uma vez.'))
+
+    # ---- cover ----------------------------------------------------------------------------------
+    def choose_cover(self):
+        path = filedialog.askopenfilename(
+            title=_('Escolher capa...'),
+            filetypes=[(_('Imagens'), '*.png *.jpg *.jpeg *.webp *.bmp'), (_('Todos'), '*.*')])
+        if not path:
+            return
+        src = Path(path)
+        try:
+            ZDIR.mkdir(parents=True, exist_ok=True)
+            for old in ('capa.png', 'capa.jpg'):
+                (ZDIR / old).unlink(missing_ok=True)
+            if src.suffix.lower() in ('.png', '.jpg', '.jpeg'):
+                # PNG and JPEG as they are (the loading screen reads both).
+                shutil_target = ZDIR / ('capa.png' if src.suffix.lower() == '.png' else 'capa.jpg')
+                shutil_target.write_bytes(src.read_bytes())
+            else:
+                Image.open(src).convert('RGB').save(ZDIR / 'capa.png')
+        except OSError as e:
+            messagebox.showerror(APP, str(e))
+            return
+        self.draw_hero()
+
+    def remove_cover(self):
+        for old in ('capa.png', 'capa.jpg'):
+            (ZDIR / old).unlink(missing_ok=True)
+        self.draw_hero()
+
+    # ---- updates --------------------------------------------------------------------------------
+    def check_updates(self, manual):
+        """Looks for a newer ZooT-PC release on GitHub; automatic checks at most once a day."""
+        now = time.time()
+        if not manual and now - float(self.settings.get('last_update_check', 0)) < 86400:
+            return
+        self.settings['last_update_check'] = now
+        save_settings(self.settings)
+        if manual:
+            self.status.config(text=_('Procurando atualização...'))
+
+        def work():
+            try:
+                release = U.latest_release()
+                error = None
+            except Exception as e:  # noqa: BLE001 - offline, rate limit...
+                release, error = None, e
+
+            def done():
+                if not self.winfo_exists():
+                    return
+                self.refresh_status()
+                if release and U.is_newer(release['version'], VERSION):
+                    self.offer_update(release)
+                elif manual:
+                    if error:
+                        messagebox.showwarning(APP, _('Não foi possível procurar atualização:')
+                                               + f'\n{error}')
+                    else:
+                        messagebox.showinfo(APP, _('Você já tem a versão mais recente '
+                                                   '(v{v}).', v=VERSION))
+            self.after(0, done)
+        threading.Thread(target=work, daemon=True).start()
+
+    def offer_update(self, release):
+        notes = release['notes'].strip()
+        if len(notes) > 900:
+            notes = notes[:900].rsplit('\n', 1)[0] + '\n…'
+        if not messagebox.askyesno(
+                APP, _('Nova versão {v} disponível (você tem a v{cur}). Atualizar agora?',
+                       v=release['version'], cur=VERSION) + f'\n\n{notes}'):
+            return
+        if self.proc and self.proc.poll() is None:
+            messagebox.showinfo(APP, _('Feche o jogo antes de atualizar.'))
+            return
+        if not getattr(sys, 'frozen', False):
+            messagebox.showinfo(APP, _('Atualização automática só funciona no ZooT.exe.')
+                                + f"\n{release['page']}")
+            return
+        self.download_update(release)
+
+    def download_update(self, release):
+        work = ZDIR / 'update'
+        dlg = tk.Toplevel(self)
+        dlg.title(APP)
+        dlg.configure(bg=T.PANEL, highlightthickness=1, highlightbackground=T.GOLD)
+        dlg.resizable(False, False)
+        dlg.transient(self)
+        w, h = 460, 150
+        dlg.geometry(f'{w}x{h}+{self.winfo_rootx() + (self.winfo_width() - w) // 2}'
+                     f'+{self.winfo_rooty() + (self.winfo_height() - h) // 2}')
+        tk.Label(dlg, text=_('Baixando {v}...', v=release['version']), font=(T.BODY_SEMI, 11),
+                 fg=T.TEXT, bg=T.PANEL).pack(pady=(22, 10))
+        bar = tk.Canvas(dlg, width=400, height=10, bg=T.CARD, highlightthickness=0)
+        bar.pack()
+        fill = bar.create_rectangle(0, 0, 0, 10, fill=T.GOLD, width=0)
+        info = tk.Label(dlg, text='', font=(T.BODY, 9), fg=T.MUTED, bg=T.PANEL)
+        info.pack(pady=(10, 0))
+        dlg.grab_set()
+        state = {'done': 0, 'total': release.get('size', 0), 'error': None, 'root': None}
+
+        def work_thread():
+            try:
+                zip_path = U.download(release['url'], work / 'ZooT-PC-update.zip',
+                                      lambda d, t: state.update(done=d, total=t or state['total']))
+                state['root'] = U.prepare(zip_path, work)
+            except Exception as e:  # noqa: BLE001
+                state['error'] = e
+
+        thread = threading.Thread(target=work_thread, daemon=True)
+        thread.start()
+
+        def poll():
+            total = state['total'] or 1
+            bar.coords(fill, 0, 0, 400 * min(1.0, state['done'] / total), 10)
+            info.config(text=f"{state['done'] / 1048576:.1f} / {total / 1048576:.1f} MB")
+            if thread.is_alive():
+                dlg.after(150, poll)
+                return
+            if state['error'] or not state['root']:
+                dlg.destroy()
+                messagebox.showerror(APP, _('A atualização falhou:') + f"\n{state['error']}")
+                return
+            info.config(text=_('Instalando e reabrindo...'))
+            U.apply_and_restart(state['root'], BASE, work, os.getpid())
+            self.after(400, self.destroy)
+        poll()
 
     def reset_setup(self):
         self.settings['game'] = ''
