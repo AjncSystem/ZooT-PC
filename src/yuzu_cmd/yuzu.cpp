@@ -8,6 +8,7 @@
 #include <atomic>
 #include <iterator>
 #include <fstream>
+#include <map>
 #include <vector>
 #include <cstdlib>
 #include <chrono>
@@ -566,6 +567,55 @@ static bool BuildWarm(Core::System& system, int argc, char** argv) {
 // counts as yes, there is no dialog), the game's compute programs are extracted from its files
 // once, and every boot builds them with the cached graphics pipelines before the game starts,
 // instead of mid-game. The renderer redoes it only when the driver or the precache file changed.
+/// ZooT-PC: the NX2 switches of nx2_switches.txt, which only the Qt frontend read before
+/// (yuzu/nx2_switches.h). Portable: the file next to the executable, then an optional
+/// user\nx2_switches.txt for the player's own overrides; never %AppData%. A variable already in
+/// the real environment (the launcher's, a script's) wins.
+static void ParseZootSwitchFile(const std::filesystem::path& path,
+                                std::map<std::string, std::string>& entries) {
+    std::ifstream file{path};
+    if (!file) {
+        return;
+    }
+    constexpr const char* blank = " \t\r";
+    std::string line;
+    while (std::getline(file, line)) {
+        line.erase(0, line.find_first_not_of(blank));
+        line.erase(line.find_last_not_of(blank) + 1);
+        if (line.empty() || line[0] == '#') {
+            continue;
+        }
+        const auto eq = line.find('=');
+        if (eq == std::string::npos) {
+            continue;
+        }
+        std::string name = line.substr(0, eq);
+        std::string value = line.substr(eq + 1);
+        name.erase(name.find_last_not_of(blank) + 1);
+        value.erase(0, value.find_first_not_of(blank));
+        if (value.size() >= 2 && value.front() == '"' && value.back() == '"') {
+            value = value.substr(1, value.size() - 2);
+        }
+        if (name.starts_with("EDEN_NX2_") || name.starts_with("EDEN_NATIVE_") ||
+            name.starts_with("EDEN_DKB_") || name == "EDEN_PUNCH_HOLE" ||
+            name == "EDEN_VI2_MAX_RESOLUTION_MODE") {
+            entries.insert_or_assign(std::move(name), std::move(value));
+        }
+    }
+}
+
+static void LoadZootSwitches() {
+    std::map<std::string, std::string> entries;
+    const auto exe_dir = Common::FS::GetExeDirectory();
+    ParseZootSwitchFile(exe_dir / "nx2_switches.txt", entries);
+    ParseZootSwitchFile(exe_dir / "user" / "nx2_switches.txt", entries);
+    for (const auto& [name, value] : entries) {
+        if (std::getenv(name.c_str()) == nullptr) {
+            _putenv_s(name.c_str(), value.c_str());
+        }
+    }
+}
+
 /// ZooT-PC launcher hook (not in --help): writes the game's own icon and title, read from the
 /// player's copy, for the launcher's game card. Nothing is shipped with the launcher.
 ///   eden-cli --zoot-export-art <game file> <output dir>
@@ -689,6 +739,8 @@ extern "C" SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
     // SDL calls SDL_AppIterate back to back by default, which kept a host core at 100% polling
     // input; 240 Hz is plenty for input and the key script.
     SDL_SetHint(SDL_HINT_MAIN_CALLBACK_RATE, "240");
+    // Before anything reads its EDEN_NX2_* switch (many cache the value on first use).
+    LoadZootSwitches();
     SdlState* state = new SdlState();
     *appstate = state;
 

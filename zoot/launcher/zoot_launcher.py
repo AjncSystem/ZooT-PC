@@ -207,6 +207,12 @@ class Launcher(tk.Tk):
 
     def __init__(self):
         set_app_id()
+        # Portable: the user folder lives next to ZooT.exe and is made on the first run.
+        for folder in (USER, ZDIR):
+            try:
+                folder.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                pass
         super().__init__()
         self.report_callback_exception = self.report_error
         self.settings = load_settings()

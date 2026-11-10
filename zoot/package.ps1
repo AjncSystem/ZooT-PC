@@ -17,9 +17,10 @@ if (-not (Test-Path $crt)) {
     $crt = (Get-ChildItem 'C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Redist\MSVC\14.50.*\x64\Microsoft.VC14*.CRT' -Directory | Select-Object -First 1).FullName
 }
 
-# 1. Launcher, one file, windowed, with its own assets (ZooT shield, OFL fonts).
+# 1. Launcher, windowed, as a folder (ZooT.exe + launcher\): a one-file build would unpack itself
+#    into %TEMP% on every start, and the port keeps everything next to the executable.
 $launcher = Join-Path $src 'zoot\launcher'
-& $py -m PyInstaller --noconfirm --clean --onefile --windowed --name ZooT `
+& $py -m PyInstaller --noconfirm --clean --onedir --contents-directory launcher --windowed --name ZooT `
     --icon (Join-Path $launcher 'assets\zoot.ico') `
     --add-data "$(Join-Path $launcher 'assets');assets" `
     --paths $launcher `
@@ -30,7 +31,8 @@ if ($LASTEXITCODE -ne 0) { throw 'PyInstaller failed' }
 # 2. Package folder.
 if (Test-Path $out) { Remove-Item -Recurse -Force $out }
 New-Item -ItemType Directory -Force $out, "$out\user", "$out\licenses" | Out-Null
-Copy-Item (Join-Path $work 'dist\ZooT.exe') $out
+Copy-Item (Join-Path $work 'dist\ZooT\ZooT.exe') $out
+Copy-Item -Recurse (Join-Path $work 'dist\ZooT\launcher') "$out\launcher"
 Copy-Item 'Z:\build\bin\eden-cli.exe' $out
 Copy-Item (Join-Path $src 'dist\nx2_switches.txt') $out -ErrorAction SilentlyContinue
 if (-not (Test-Path "$out\nx2_switches.txt")) { Copy-Item 'Z:\build\bin\nx2_switches.txt' $out }
@@ -48,7 +50,8 @@ Copy-Item (Join-Path $src 'zoot\README-ZooT.txt') $out
 
 # 3. Safety: nothing but our own files.
 $bad = Get-ChildItem $out -Recurse -File | Where-Object {
-    $_.Extension -in '.nup', '.nx', '.nsp', '.xci', '.nca', '.keys', '.sav', '.bin', '.jpg' -or
+    $_.Extension -in '.nup', '.nx', '.nsp', '.xci', '.nca', '.keys', '.sav', '.jpg' -or
+    ($_.Extension -eq '.bin' -and $_.FullName -notmatch '\\launcher\\') -or
     $_.Name -match '^(capa|game-icon|icon)\.(png|jpg)$' -or $_.FullName -match '\\user\\.+'
 }
 if ($bad) { $bad | ForEach-Object { $_.FullName }; throw 'Package holds files it must not ship' }

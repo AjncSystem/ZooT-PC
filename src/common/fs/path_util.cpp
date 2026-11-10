@@ -112,10 +112,12 @@ public:
         fs::path eden_path_cache;
         fs::path eden_path_config;
 #ifdef _WIN32
-        // User directory takes priority over global %AppData% directory
+        // ZooT-PC is always portable: everything it writes lives in <exe dir>\user, made on the
+        // first run when missing (a zip tool may drop the empty folder), never in %AppData%.
         eden_path = GetExeDirectory() / PORTABLE_DIR;
         if (!Exists(eden_path) || !IsDir(eden_path)) {
-            eden_path = GetAppDataRoamingDirectory() / EDEN_DIR;
+            std::error_code ec;
+            fs::create_directories(eden_path, ec);
         }
         eden_path_cache = eden_path / CACHE_DIR;
         eden_path_config = eden_path / CONFIG_DIR;
