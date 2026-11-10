@@ -65,6 +65,7 @@ add_library(video_core STATIC
     render_trace.h
     fsr.cpp
     fsr.h
+    fsr4_support.h
     game_dlss_status.cpp
     game_dlss_status.h
     host1x/codecs/decoder.cpp
@@ -178,6 +179,8 @@ add_library(video_core STATIC
     renderer_vulkan/maxwell_to_vk.cpp
     renderer_vulkan/maxwell_to_vk.h
     renderer_vulkan/pipeline_build.h
+    renderer_vulkan/pipeline_build_failure.cpp
+    renderer_vulkan/pipeline_build_failure.h
     renderer_vulkan/pipeline_build_trace.h
     renderer_vulkan/pipeline_helper.h
     renderer_vulkan/pipeline_optimization.h
@@ -197,6 +200,11 @@ add_library(video_core STATIC
     renderer_vulkan/vk_compute_pass.h
     renderer_vulkan/vk_fsr3_upscaler.cpp
     renderer_vulkan/vk_fsr3_upscaler.h
+    renderer_vulkan/vk_fsr4_upscaler.cpp
+    renderer_vulkan/vk_fsr4_upscaler.h
+    vulkan_common/ffx_files.h
+    vulkan_common/ffx_runtime.cpp
+    vulkan_common/ffx_runtime.h
     renderer_vulkan/vk_dlss_network_probe.cpp
     renderer_vulkan/vk_dlss_network_probe.h
     renderer_vulkan/vk_ocarina_camera_motion.cpp
@@ -215,6 +223,8 @@ add_library(video_core STATIC
     renderer_vulkan/vk_frame_dump.h
     renderer_vulkan/vk_graphics_pipeline.cpp
     renderer_vulkan/vk_graphics_pipeline.h
+    renderer_vulkan/vk_pipeline_library.cpp
+    renderer_vulkan/vk_pipeline_library.h
     renderer_vulkan/vk_multi_range_buffer.cpp
     renderer_vulkan/vk_multi_range_buffer.h
     renderer_vulkan/vk_master_semaphore.cpp
@@ -261,6 +271,7 @@ add_library(video_core STATIC
     vulkan_common/vulkan_debug_callback.h
     vulkan_common/vulkan_device.cpp
     vulkan_common/vulkan_device.h
+    vulkan_common/graphics_pipeline_library_policy.h
     vulkan_common/vulkan_instance.cpp
     vulkan_common/vulkan_instance.h
     vulkan_common/vulkan_library.cpp
@@ -296,6 +307,7 @@ add_library(video_core STATIC
     shader_cache_v2/records.h
     shader_environment.cpp
     shader_environment.h
+    evicted_pointer_slots.h
     shader_handle_program.h
     shader_jobs.cpp
     shader_jobs.h
@@ -307,8 +319,11 @@ add_library(video_core STATIC
     shader_warm/shader_archives.h
     shader_warm/shader_warm_builder.cpp
     shader_warm/shader_warm_builder.h
+    shader_warm/warm_defaults.cpp
     shader_warm/warm_records.cpp
     shader_warm/warm_records.h
+    spirv_inline_control.cpp
+    spirv_inline_control.h
     smaa_area_tex.h
     smaa_search_tex.h
     surface.cpp
@@ -523,6 +538,34 @@ add_custom_command(
     DEPENDS ${lowering_inputs} "${PROJECT_SOURCE_DIR}/CMakeModules/GenerateShaderLoweringStamp.cmake"
     VERBATIM)
 target_sources(video_core PRIVATE "${lowering_stamp}")
+# Shader precache markers: a hash of every source that shapes the SPIR-V built from guest code
+# (the recompiler without its OpenGL backends, the native lowering and the call inlining), so a
+# build that may emit other SPIR-V runs the precache once more (ShaderWarm::EmissionStamp).
+file(GLOB_RECURSE emission_sources CONFIGURE_DEPENDS RELATIVE "${lowering_source_dir}"
+     "${lowering_source_dir}/shader_recompiler/*.cpp" "${lowering_source_dir}/shader_recompiler/*.h"
+     "${lowering_source_dir}/shader_recompiler/*.inc")
+list(FILTER emission_sources EXCLUDE REGEX "^shader_recompiler/backend/(glasm|glsl)/")
+list(APPEND emission_sources video_core/mkw_wave_workaround.h video_core/native_lowering.cpp
+     video_core/native_lowering.h video_core/spirv_inline_control.cpp
+     video_core/spirv_inline_control.h)
+list(SORT emission_sources)
+list(TRANSFORM emission_sources PREPEND "${lowering_source_dir}/" OUTPUT_VARIABLE emission_inputs)
+# Too many paths for a Windows command line: they go through a file, one per line.
+list(JOIN emission_sources "\n" emission_text)
+set(emission_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/video_core/shader_warm")
+set(emission_list "${emission_dir}/emission_sources.txt")
+file(CONFIGURE OUTPUT "${emission_list}" CONTENT "${emission_text}\n" @ONLY)
+set(emission_stamp "${emission_dir}/emission_stamp.h")
+add_custom_command(
+    OUTPUT "${emission_stamp}"
+    COMMAND ${CMAKE_COMMAND} "-DSOURCE_DIR=${lowering_source_dir}" "-DFILES_FROM=${emission_list}"
+            "-DOUTPUT=${emission_stamp}" "-DNAMESPACE=VideoCommon::ShaderWarm"
+            "-DNAME=GeneratedEmissionStamp"
+            -P "${PROJECT_SOURCE_DIR}/CMakeModules/GenerateShaderLoweringStamp.cmake"
+    DEPENDS ${emission_inputs} "${emission_list}"
+            "${PROJECT_SOURCE_DIR}/CMakeModules/GenerateShaderLoweringStamp.cmake"
+    VERBATIM)
+target_sources(video_core PRIVATE "${emission_stamp}")
 target_include_directories(video_core PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_link_libraries(video_core PUBLIC shader_recompiler stb bc_decoder gpu_logging)
 if (ENABLE_OPENGL)
@@ -540,6 +583,12 @@ target_link_options(video_core PRIVATE ${FFmpeg_LDFLAGS})
 
 add_dependencies(video_core host_shaders)
 target_include_directories(video_core PRIVATE ${HOST_SHADERS_INCLUDE})
+# AMD's FFX API headers (MIT), for calling AMD's FSR 4 runtime (vk_fsr4_upscaler.cpp).
+target_include_directories(video_core PRIVATE ${CMAKE_SOURCE_DIR}/externals/ffx-api)
+if (WIN32)
+    # Checks AMD's downloaded FSR 4 runtime (vulkan_common/ffx_runtime.cpp).
+    target_link_libraries(video_core PRIVATE bcrypt wintrust crypt32)
+endif()
 
 target_link_libraries(video_core PRIVATE sirit::sirit)
 

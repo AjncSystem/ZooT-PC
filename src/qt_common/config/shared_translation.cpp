@@ -166,6 +166,16 @@ std::unique_ptr<TranslationMap> InitializeTranslations(QObject* parent) {
            tr("Strength of RCAS (AMD's contrast-adaptive sharpening) on the upscaler used in place "
               "of a game's DLSS (AMD FSR 3.1); 0% turns it off.\nAlso sets the sharpening "
               "of the AMD FSR 1 and SGSR window adapting filters."));
+    INSERT(Settings, ocarina_fsr, tr("Use AMD FSR 3.1 upscaling in Ocarina of Time"),
+           tr("Replaces Ocarina of Time's native upscaler using scene depth and camera motion. "
+              "Works on any supported Vulkan GPU. NVIDIA DLSS takes precedence when enabled and "
+              "available. RCAS Sharpness controls sharpening. Takes effect when a game starts."));
+    INSERT(Settings, amd_fsr4, tr("Use AMD FSR 4 in place of FSR 3.1"),
+           tr("Uses AMD's ML-based FSR 4 where FSR replaces a game's upscaler (Ocarina of Time "
+              "with the setting above). Radeon RX 6000 or newer, or a Ryzen AI processor, with a "
+              "current AMD driver.\nNeeds AMD's FidelityFX runtime, which Lichii downloads from "
+              "AMD when you ask. The files are AMD's, under AMD's licence. Without them, or if FSR 4 "
+              "can't run, FSR 3.1 is used. Takes effect when a game starts."));
     INSERT(Settings, nvidia_dlss, tr("Use NVIDIA DLSS in place of a game's DLSS (experimental)"),
            tr("Uses NVIDIA DLSS on GeForce RTX cards in place of a Switch 2 game's own DLSS, "
               "instead of AMD FSR 3.1.\nNeeds NVIDIA's Streamline loader, and NVIDIA DLSS unless "
@@ -311,8 +321,9 @@ std::unique_ptr<TranslationMap> InitializeTranslations(QObject* parent) {
               "files internally."));
     INSERT(Settings, precache_shaders, tr("Precache shaders before game start:"),
            tr("Builds shaders on the loading screen, on every CPU thread, so they don't stutter "
-              "the first time the game uses them: the compute shaders found in the game files, "
-              "and the shaders saved by earlier play sessions that the normal shader loading "
+              "the first time the game uses them: the compute shaders found in the game files "
+              "(and their graphics shaders with Shader libraries on), and the shaders saved by "
+              "earlier play sessions that the normal shader loading "
               "leaves for later. The first launch reads the game files and takes a few minutes; "
               "later launches only build what is new, until the GPU driver changes. The loading "
               "screen has a Skip button.\nAsk asks at launch while the game has never been "
@@ -328,6 +339,22 @@ std::unique_ptr<TranslationMap> InitializeTranslations(QObject* parent) {
            tr("Used by the Bounded mode: the most time per frame that Switch 2 draws may wait in "
               "total for pipelines that are still building. Once spent, the remaining unbuilt "
               "draws of that frame are skipped."));
+
+    INSERT(Settings, use_graphics_pipeline_library,
+           tr("Shader libraries (faster first-time shader builds)"),
+           tr("Builds each shader stage once and links them into pipelines, so new shaders "
+              "cause shorter stutters.\nAlso lets Precache shaders before game start build the "
+              "graphics shaders found in the game files.\nTakes effect after restarting the "
+              "game."));
+    INSERT(Settings, shader_calls_not_inlined,
+           tr("Faster shader compiles (shared functions as calls)"),
+           tr("Builds large functions that a shader uses in several places once, as calls, "
+              "instead of copying them into every place. Driver compiles of such shaders get "
+              "several times faster (compute precache about 3x); the game may run slightly "
+              "slower.\nApplies to shaders built after the change."));
+    INSERT(Settings, shader_warm_threads, tr("Shader precache threads:"),
+           tr("CPU threads the shader precache uses on the loading screen. 0 uses every CPU "
+              "thread.\nTakes effect at the next game start."));
     INSERT(Settings, enable_compute_pipelines, tr("Enable Compute Pipelines (Intel Vulkan Only)"),
            tr("Required by some games.\nThis setting only exists for Intel "
               "proprietary drivers and may crash if enabled.\nCompute pipelines are always enabled "
