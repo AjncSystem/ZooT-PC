@@ -39,7 +39,9 @@ if getattr(sys, 'frozen', False):
     BASE = Path(sys.executable).resolve().parent
     BUNDLE = Path(getattr(sys, '_MEIPASS', BASE))
 else:
-    BASE = Path(os.environ.get('ZOOT_BASE', r'Z:\build\bin'))
+    # Dev runs: the build folder of this checkout (<ZooT-PC>\build\bin).
+    BASE = Path(os.environ.get('ZOOT_BASE',
+                               Path(__file__).resolve().parents[3] / 'build' / 'bin'))
     BUNDLE = Path(__file__).resolve().parent
 
 CORE = BASE / 'eden-cli.exe'

@@ -33,9 +33,10 @@ if (Test-Path $out) { Remove-Item -Recurse -Force $out }
 New-Item -ItemType Directory -Force $out, "$out\user", "$out\licenses" | Out-Null
 Copy-Item (Join-Path $work 'dist\ZooT\ZooT.exe') $out
 Copy-Item -Recurse (Join-Path $work 'dist\ZooT\launcher') "$out\launcher"
-Copy-Item 'Z:\build\bin\eden-cli.exe' $out
+$bin = Join-Path $root 'build\bin'
+Copy-Item (Join-Path $bin 'eden-cli.exe') $out
 Copy-Item (Join-Path $src 'dist\nx2_switches.txt') $out -ErrorAction SilentlyContinue
-if (-not (Test-Path "$out\nx2_switches.txt")) { Copy-Item 'Z:\build\bin\nx2_switches.txt' $out }
+if (-not (Test-Path "$out\nx2_switches.txt")) { Copy-Item (Join-Path $bin 'nx2_switches.txt') $out }
 foreach ($dll in 'msvcp140.dll', 'msvcp140_1.dll', 'msvcp140_2.dll', 'msvcp140_atomic_wait.dll',
                  'msvcp140_codecvt_ids.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {
     Copy-Item (Join-Path $crt $dll) $out

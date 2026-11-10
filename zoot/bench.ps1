@@ -1,26 +1,31 @@
 # ZooT-PC stutter bench: cold caches (Lichii + NVIDIA driver), title screen + attract demo, no input.
-# Usage: powershell -File zoot\bench.ps1 -Label base -Seconds 240 [-Exe Z:\build\bin\eden-cli.exe] [-Env "A=1,B=2"]
+# Usage: powershell -File zoot\bench.ps1 -Label base -Seconds 240 [-Exe <eden-cli.exe>] [-Env "A=1,B=2"]
+# Runs live in <ZooT-PC>\bench\<label>; the default executable is <ZooT-PC>\build\bin\eden-cli.exe.
 param(
     [Parameter(Mandatory = $true)][string]$Label,
     [int]$Seconds = 240,
-    [string]$Exe = 'Z:\build\bin\eden-cli.exe',
+    [string]$Exe = '',
     [string]$Env = '',
     [string]$Ini = '',  # "key=value,..." set in the run's copy of sdl2-config.ini
     [switch]$Keep,  # keep the caches of an earlier run with this label (second boot)
     [string]$Seed = ''  # title cache folder to start from (pipeline caches only, no warm files)
 )
 $ErrorActionPreference = 'Stop'
-$game = (Get-ChildItem -LiteralPath 'E:\Zelda Remaster switch 2\The Legend of Zelda Ocarina of Time [0400486024DEC000][v131072]' -Filter *.nup).FullName
-$dir = "Z:\bench\$Label"
+$root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)   # <ZooT-PC>
+$bin = Join-Path $root 'build\bin'
+if (-not $Exe) { $Exe = Join-Path $bin 'eden-cli.exe' }
+# The game file the play install's launcher points at.
+$game = (Get-Content (Join-Path $bin 'user\zoot\launcher.json') -Raw | ConvertFrom-Json).game
+$dir = Join-Path $root "bench\$Label"
 Get-Process eden-cli -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep 1
 if (-not $Keep -and (Test-Path $dir)) { Remove-Item -Recurse -Force $dir }
 New-Item -ItemType Directory -Force "$dir\user\config", "$dir\nvcache" | Out-Null
 Copy-Item -Force $Exe "$dir\eden-cli.exe"
-Copy-Item -Force 'Z:\build\bin\nx2_switches.txt' "$dir\"
+Copy-Item -Force (Join-Path $bin 'nx2_switches.txt') "$dir\"
 if (-not $Keep) {
     # Same settings as the play install (precache on), no saves: the title screen needs none.
-    Copy-Item -Force 'Z:\build\bin\user\config\sdl2-config.ini' "$dir\user\config\"
+    Copy-Item -Force (Join-Path $bin 'user\config\sdl2-config.ini') "$dir\user\config\"
     $iniPath = "$dir\user\config\sdl2-config.ini"
     $text = [IO.File]::ReadAllText($iniPath)
     foreach ($kv in ($Ini -split ',' | Where-Object { $_ })) {
