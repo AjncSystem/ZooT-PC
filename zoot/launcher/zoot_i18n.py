@@ -194,6 +194,18 @@ T = {
                                                'ja': '{path} に eden-cli.exe がありません',
                                                'ko': '{path}에 eden-cli.exe가 없습니다',
                                                'ru': 'eden-cli.exe не найден в {path}'},
+    'Parar': {'en': 'Stop', 'es': 'Detener', 'fr': 'Arrêter', 'ja': '停止', 'ko': '중지',
+              'ru': 'Стоп'},
+    'Fechar o jogo agora? O progresso desde o último save será perdido.': {
+        'en': 'Close the game now? Progress since the last save will be lost.',
+        'es': '¿Cerrar el juego ahora? Se perderá el progreso desde el último guardado.',
+        'fr': 'Fermer le jeu maintenant ? La progression depuis la dernière sauvegarde sera '
+              'perdue.',
+        'ja': '今すぐゲームを終了しますか？最後のセーブ以降の進行は失われます。',
+        'ko': '지금 게임을 종료할까요? 마지막 저장 이후의 진행은 사라집니다.',
+        'ru': 'Закрыть игру сейчас? Прогресс после последнего сохранения будет потерян.'},
+    'Jogando...': {'en': 'Playing...', 'es': 'Jugando...', 'fr': 'En jeu...', 'ja': 'プレイ中...',
+                   'ko': '플레이 중...', 'ru': 'Идёт игра...'},
     'Jogo em execução...': {'en': 'Game running...', 'es': 'Juego en ejecución...',
                             'fr': 'Jeu en cours...', 'ja': 'ゲーム実行中...',
                             'ko': '게임 실행 중...', 'ru': 'Игра запущена...'},

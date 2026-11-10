@@ -402,6 +402,9 @@ class Launcher(tk.Tk):
         tk.Frame(right, bg=T.BORDER, height=1).pack(fill='x', side='bottom')
         self.play_btn = T.Button(bar, f"▶  {_('JOGAR')}", self.play, primary=True, big=True)
         self.play_btn.pack(side='right', padx=(10, 24), pady=10)
+        # Stop, as in the SotC-PC launcher: closes the running game from the launcher.
+        self.stop_btn = T.Button(bar, f"■  {_('Parar')}", self.stop)
+        self.stop_btn.pack(side='right', pady=10)
         self.status = tk.Label(bar, text='', bg=T.SIDE, fg=T.MUTED, font=(T.BODY, 10),
                                anchor='w', justify='left')
         self.status.pack(side='left', fill='x', expand=True, padx=(24, 12))
@@ -791,6 +794,7 @@ class Launcher(tk.Tk):
         self.apply_ini()
         env = dict(os.environ)
         env['ZOOT_PORT_VERSION'] = VERSION
+        env['ZOOT_LANG'] = I18N.LANG  # the loading screen speaks the launcher's language
         if self.settings['gpl']:
             env['EDEN_NX2_GPL_OPTIMIZE'] = '1'
         args = [str(CORE), '-g', self.settings['game']]
@@ -805,18 +809,34 @@ class Launcher(tk.Tk):
         except OSError as e:
             messagebox.showerror(APP, f"{_('Não foi possível iniciar o jogo:')}\n{e}")
             return
-        self.withdraw()
+        # The launcher stays on screen while the game runs (the player asked for it).
+        self.play_btn.config(text=f"●  {_('Jogando...')}")
+        self.refresh_status()
         self.after(1000, self.watch)
+
+    def stop(self):
+        """Closes the running game (asks first: progress since the last save is lost)."""
+        if not self.proc or self.proc.poll() is not None:
+            return
+        if not messagebox.askyesno(APP, _('Fechar o jogo agora? O progresso desde o último save '
+                                          'será perdido.')):
+            return
+        self.stopping = True
+        try:
+            self.proc.terminate()
+        except OSError:
+            pass
 
     def watch(self):
         code = self.proc.poll()
         if code is None:
             self.after(1000, self.watch)
             return
-        self.deiconify()
+        self.play_btn.config(text=f"▶  {_('JOGAR')}")
         self.refresh_status()
         code &= 0xFFFFFFFF
-        if code not in (0, 0xC000013A):
+        stopped, self.stopping = getattr(self, 'stopping', False), False
+        if not stopped and code not in (0, 0xC000013A):
             tail = ''
             try:
                 tail = '\n'.join(LOG.read_text(encoding='utf-8', errors='replace')

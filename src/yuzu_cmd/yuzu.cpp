@@ -657,16 +657,16 @@ static bool ExportGameArt(Core::System& system, int argc, char** argv) {
 
 static std::string LoadingStageName(std::string_view stage) {
     if (stage == "Reading game files") {
-        return "Lendo os arquivos do jogo";
+        return "read";
     }
     if (stage == "Extracting shaders") {
-        return "Extraindo os shaders do jogo";
+        return "extract";
     }
     if (stage == "Converting") {
-        return "Convertendo os shaders";
+        return "convert";
     }
     if (stage == "Writing") {
-        return "Gravando o pre-cache";
+        return "write";
     }
     return std::string{stage};
 }
@@ -952,16 +952,16 @@ extern "C" SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
                 }
                 switch (stage) {
                 case VideoCore::LoadCallbackStage::Prepare:
-                    screen->Update("Lendo o cache de shaders", value, total);
+                    screen->Update("cache", value, total);
                     break;
                 case VideoCore::LoadCallbackStage::Build:
-                    screen->Update("Carregando os shaders salvos", value, total);
+                    screen->Update("build", value, total);
                     break;
                 case VideoCore::LoadCallbackStage::Warm:
-                    screen->Update("Pre-compilando os shaders do jogo", value, total);
+                    screen->Update("warm", value, total);
                     break;
                 case VideoCore::LoadCallbackStage::Complete:
-                    screen->Update("Iniciando o jogo", value, total);
+                    screen->Update("start", value, total);
                     break;
                 }
             });

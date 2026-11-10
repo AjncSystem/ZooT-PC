@@ -48,6 +48,10 @@ endif()
 target_link_libraries(yuzu-cmd PRIVATE ${PLATFORM_LIBRARIES} Threads::Threads)
 
 create_resource("../../dist/zoot-128.png" "yuzu_cmd/yuzu_icon.h" "yuzu_icon")
+# ZooT-PC loading screen fonts (SIL Open Font License, zoot/launcher/assets/fonts).
+create_resource("../../zoot/launcher/assets/fonts/Inter-Regular.ttf" "yuzu_cmd/zoot_font_inter.h" "zoot_font_inter")
+create_resource("../../zoot/launcher/assets/fonts/Inter-SemiBold.ttf" "yuzu_cmd/zoot_font_inter_semi.h" "zoot_font_inter_semi")
+create_resource("../../zoot/launcher/assets/fonts/Cinzel-Bold.ttf" "yuzu_cmd/zoot_font_cinzel.h" "zoot_font_cinzel")
 target_include_directories(yuzu-cmd PRIVATE ${RESOURCES_DIR})
 
 target_link_libraries(yuzu-cmd PRIVATE SDL3::SDL3)
