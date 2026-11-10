@@ -545,6 +545,60 @@ static bool BuildWarm(Core::System& system, int argc, char** argv) {
     return result.ok;
 }
 
+// ZooT-PC: the Qt frontend's PrepareShaderPrecache for eden-cli. With precache_shaders on (Ask
+// counts as yes, there is no dialog), the game's compute programs are extracted from its files
+// once, and every boot builds them with the cached graphics pipelines before the game starts,
+// instead of mid-game. The renderer redoes it only when the driver or the precache file changed.
+static void PrepareShaderPrecache(Core::System& system, const std::string& game_path) {
+    namespace ShaderWarm = VideoCommon::ShaderWarm;
+    ShaderWarm::RequestWarmBeforeStart(false);
+    if (Settings::values.precache_shaders.GetValue() == Settings::PrecacheShaders::Off ||
+        !Settings::values.use_disk_shader_cache.GetValue()) {
+        return;
+    }
+    u64 title_id{};
+    const auto file = Core::GetGameFileFromPath(system.GetFilesystem(), game_path);
+    const auto loader = file ? Loader::GetLoader(system, file, 0, 0) : nullptr;
+    if (loader == nullptr || loader->ReadProgramId(title_id) != Loader::ResultStatus::Success ||
+        title_id == 0) {
+        LOG_WARNING(Frontend, "Shader precache: no program id, starting without it");
+        return;
+    }
+    if (!ShaderWarm::WarmPending(title_id)) {
+        ShaderWarm::RequestWarmBeforeStart(true);
+        return;
+    }
+    std::error_code ec;
+    if (!std::filesystem::exists(ShaderWarm::ComputeWarmPath(title_id), ec)) {
+        LOG_INFO(Frontend, "Shader precache: extracting the shaders of {:016X} from the game files",
+                 title_id);
+        const auto begin = std::chrono::steady_clock::now();
+        std::string last_stage;
+        auto last_print = begin;
+        const auto on_progress = [&](const ShaderWarm::Progress& progress) {
+            const auto now = std::chrono::steady_clock::now();
+            if (progress.stage == last_stage && now - last_print < std::chrono::seconds{5}) {
+                return;
+            }
+            last_stage = progress.stage;
+            last_print = now;
+            LOG_INFO(Frontend, "Shader precache: {} {}/{}", progress.stage, progress.done,
+                     progress.total);
+        };
+        const auto result = ShaderWarm::BuildWarmFiles(
+            system, Common::FS::ToU8String(game_path), title_id, on_progress, {});
+        LOG_INFO(Frontend,
+                 "Shader precache: ok={} archives={} compute={} skipped={} in {:.1f} s {}",
+                 result.ok, result.archives, result.compute_programs, result.skipped,
+                 std::chrono::duration<double>(std::chrono::steady_clock::now() - begin).count(),
+                 result.error);
+        if (!result.ok || !std::filesystem::exists(ShaderWarm::ComputeWarmPath(title_id), ec)) {
+            return;
+        }
+    }
+    ShaderWarm::RequestWarmBeforeStart(true);
+}
+
 extern "C" SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
 #ifdef _WIN32
     SetUnhandledExceptionFilter(WriteCrashDump);
@@ -686,6 +740,8 @@ extern "C" SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
         load_parameters.previous_program_index = handoff->previous_program_index;
         LOG_INFO(Frontend, "Restarted by the game: program index {}, {} user channel entries",
                  handoff->program_index, state->system.GetUserChannel().size());
+    } else {
+        PrepareShaderPrecache(state->system, lp.filepath);
     }
     const Core::SystemResultStatus load_result = state->system.Load(*state->emu_window, lp.filepath, load_parameters);
     switch (load_result) {
