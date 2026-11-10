@@ -33,6 +33,12 @@ the card and behind the loading screen, on your PC only.*
   FPS, **Controls** (keyboard or controller, automatic mapping, change any button), language,
   saves with zip backups, help and the game log. Seven languages: Português, English, Español,
   Français, 日本語, 한국어, Русский.
+- **Updates itself**: checks the GitHub releases once a day (or on *Check for updates*),
+  downloads the new version and swaps the files, never touching your `user` folder.
+- **Your own cover**: *Game → Choose cover…* puts your picture on the game card and behind the
+  loading screen (kept on your PC only).
+- **Report** button: a `.zip` with a summary of your PC, the settings and the last logs, with
+  personal paths hidden, ready to attach to an issue.
 - **Less shader stutter**: the game's shaders are extracted from your own copy and precompiled
   once on a loading screen (Lichii's shader precache), with Vulkan pipeline libraries from Lichii
   [PR #741](https://github.com/zortos293/Lichii/pull/741) so new pipelines only cost a link.
@@ -52,7 +58,7 @@ the card and behind the loading screen, on your PC only.*
 
 ## Install
 
-1. Download `ZooT-PC-v0.10.zip` from [Releases](https://github.com/AjncSystem/ZooT-PC/releases)
+1. Download `ZooT-PC-v0.11.zip` from [Releases](https://github.com/AjncSystem/ZooT-PC/releases)
    and extract it anywhere.
 2. Open `ZooT.exe` and choose your game file.
 3. Press **PLAY**. The first start prepares the shaders (a few minutes, once per driver; Esc

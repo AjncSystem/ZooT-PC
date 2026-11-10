@@ -1,4 +1,4 @@
-ZooT-PC v0.10
+ZooT-PC v0.11
 =============
 
 Port para PC de The Legend of Zelda: Ocarina of Time (Nintendo Switch 2), feito sobre o
