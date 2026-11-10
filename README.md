@@ -8,6 +8,24 @@ one game, one launcher, everything tuned for it.
 > **No game, keys, firmware or Nintendo artwork are included.** You need your own copy of the
 > game (`.nup`, `.nx`, `.nsp` or `.xci`). ZooT-PC is not affiliated with or endorsed by Nintendo.
 
+## Screenshots
+
+The ZooT launcher: quick settings beside the game card and the ready check (game, core, shaders,
+graphics card and RAM).
+
+![ZooT launcher, Play page](docs/zoot/screenshots/launcher-play.png)
+
+| Controls | Display & FPS |
+|---|---|
+| ![Controls page](docs/zoot/screenshots/launcher-controls.png) | ![Display & FPS page](docs/zoot/screenshots/launcher-display.png) |
+
+| Shader precompile on the loading screen | In-game `F1` menu |
+|---|---|
+| ![Loading screen](docs/zoot/screenshots/loading-screen.png) | ![F1 menu](docs/zoot/screenshots/menu-f1.png) |
+
+*Shown with the default ZooT card. Your own cover (`user\zoot\capa.png`) replaces the shield on
+the card and behind the loading screen, on your PC only.*
+
 ## What you get
 
 - **ZooT launcher** (`ZooT.exe`): finds your game, quick settings beside the game card, ready
