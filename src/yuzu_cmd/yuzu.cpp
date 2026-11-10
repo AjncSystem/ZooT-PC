@@ -9,6 +9,9 @@
 #include <iterator>
 #include <fstream>
 #include <map>
+#include <thread>
+
+#include <nlohmann/json.hpp>
 #include <vector>
 #include <cstdlib>
 #include <chrono>
@@ -52,6 +55,8 @@
 #include "frontend_common/config.h"
 #include "input_common/drivers/keyboard.h"
 #include "input_common/main.h"
+#include "common/param_package.h"
+#include "common/settings_input.h"
 #include "network/network.h"
 #include "sdl_config.h"
 #include "video_core/gpu.h"
@@ -616,6 +621,83 @@ static void LoadZootSwitches() {
     }
 }
 
+/// ZooT-PC launcher hooks for the Controls page (not in --help), through Lichii's own input
+/// subsystem, so every mapping is in the format the game reads. Each prints one JSON line:
+///   eden-cli --zoot-pad-list                    controllers: [{"name", "params"}]
+///   eden-cli --zoot-pad-automap "<params>"      default mapping of a controller:
+///                                               {"button_a": "<params>", ..., "lstick": ...}
+///   eden-cli --zoot-pad-capture button|stick <seconds>
+///                                               the next controller button or stick moved:
+///                                               {"params": "<params>"} (empty on time-out)
+/// The keyboard is captured by the launcher itself (no game window here).
+static bool ZootPadCommand(InputCommon::InputSubsystem& input, int argc, char** argv) {
+    const std::string_view command{argv[1]};
+    input.Initialize();
+    // SDL is not set up by this process, so the SDL driver runs its own event thread and
+    // enumerates the controllers; give it a moment.
+    const auto settle = [&input](int ms) {
+        const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds{ms};
+        while (std::chrono::steady_clock::now() < until) {
+            input.PumpEvents();
+            std::this_thread::sleep_for(std::chrono::milliseconds{10});
+        }
+    };
+    const auto is_pad = [](const Common::ParamPackage& p) {
+        const std::string engine = p.Get("engine", "");
+        return !engine.empty() && engine != "any" && engine != "keyboard" && engine != "mouse" &&
+               engine != "touch_from_button" && engine != "analog_from_button";
+    };
+    nlohmann::json out;
+    bool ok = true;
+    if (command == "--zoot-pad-list") {
+        settle(1500);
+        out = nlohmann::json::array();
+        for (const auto& device : input.GetInputDevices()) {
+            if (is_pad(device)) {
+                out.push_back({{"name", device.Get("display", "Controller")},
+                               {"params", device.Serialize()}});
+            }
+        }
+    } else if (command == "--zoot-pad-automap" && argc > 2) {
+        settle(1500);
+        const Common::ParamPackage device{argv[2]};
+        out = nlohmann::json::object();
+        for (const auto& [button, params] : input.GetButtonMappingForDevice(device)) {
+            out[Settings::NativeButton::mapping[button]] = params.Serialize();
+        }
+        for (const auto& [analog, params] : input.GetAnalogMappingForDevice(device)) {
+            out[Settings::NativeAnalog::mapping[analog]] = params.Serialize();
+        }
+        ok = !out.empty();
+    } else if (command == "--zoot-pad-capture" && argc > 2) {
+        const bool stick = std::string_view{argv[2]} == "stick";
+        const int seconds = argc > 3 ? std::clamp(std::atoi(argv[3]), 1, 30) : 10;
+        settle(800);
+        input.BeginMapping(stick ? InputCommon::Polling::InputType::Stick
+                                 : InputCommon::Polling::InputType::Button);
+        const auto until = std::chrono::steady_clock::now() + std::chrono::seconds{seconds};
+        std::string found;
+        while (found.empty() && std::chrono::steady_clock::now() < until) {
+            input.PumpEvents();
+            const Common::ParamPackage p = input.GetNextInput();
+            if (is_pad(p)) {
+                found = p.Serialize();
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds{5});
+        }
+        input.StopMapping();
+        out = {{"params", found}};
+    } else {
+        fmt::print(stderr, "usage: --zoot-pad-list | --zoot-pad-automap <params> | "
+                           "--zoot-pad-capture button|stick [seconds]\n");
+        ok = false;
+    }
+    fmt::print("{}\n", out.dump());
+    std::fflush(stdout);
+    input.Shutdown();
+    return ok;
+}
+
 /// ZooT-PC launcher hook (not in --help): writes the game's own icon and title, read from the
 /// player's copy, for the launcher's game card. Nothing is shipped with the launcher.
 ///   eden-cli --zoot-export-art <game file> <output dir>
@@ -745,7 +827,13 @@ extern "C" SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
     *appstate = state;
 
 #ifdef _WIN32
-    if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+    // ZooT-PC: a parent that reads our output through a pipe or a file (the launcher's
+    // --zoot-* commands) keeps it; only a plain console parent gets the console attached.
+    const HANDLE std_out = GetStdHandle(STD_OUTPUT_HANDLE);
+    const DWORD std_out_type =
+        std_out && std_out != INVALID_HANDLE_VALUE ? GetFileType(std_out) : FILE_TYPE_UNKNOWN;
+    if (std_out_type != FILE_TYPE_PIPE && std_out_type != FILE_TYPE_DISK &&
+        AttachConsole(ATTACH_PARENT_PROCESS)) {
         freopen("CONOUT$", "wb", stdout);
         freopen("CONOUT$", "wb", stderr);
     }
@@ -769,6 +857,10 @@ extern "C" SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
     }
     if (argc > 1 && std::string_view{argv[1]} == "--zoot-export-art") {
         return ExportGameArt(state->system, argc, argv) ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
+    }
+    if (argc > 1 && std::string_view{argv[1]}.starts_with("--zoot-pad")) {
+        return ZootPadCommand(state->input_subsystem, argc, argv) ? SDL_APP_SUCCESS
+                                                                  : SDL_APP_FAILURE;
     }
 
     int option_index = 0;

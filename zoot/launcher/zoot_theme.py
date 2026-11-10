@@ -37,7 +37,8 @@ SS = 4
 
 # Segoe Fluent Icons (Windows 11) / Segoe MDL2 Assets (Windows 10), as in the SotC-PC launcher.
 ICON = {'play': '', 'display': '', 'gameplay': '', 'language': '',
-        'saves': '', 'help': '', 'log': '', 'folder': ''}
+        'saves': '', 'help': '', 'log': '', 'folder': '',
+        'controls': ''}
 
 
 def pill(w, h, fill, outline, bg):

@@ -27,6 +27,7 @@ from PIL import Image, ImageTk
 if not getattr(sys, 'frozen', False):
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 import zoot_i18n as I18N  # noqa: E402
+import zoot_controls as C  # noqa: E402
 import zoot_theme as T  # noqa: E402
 from zoot_i18n import _  # noqa: E402
 
@@ -78,7 +79,8 @@ REGION_OF = {0: 0, 7: 5, 15: 4, 6: 4, 16: 6, 11: 6,
              2: 2, 3: 2, 4: 2, 5: 2, 8: 2, 9: 2, 10: 2, 12: 2, 18: 2}  # others: USA (1)
 
 NAV = [('play', 'Jogar', 'play'), ('game', 'Jogo', 'gameplay'),
-       ('graphics', 'Imagem e FPS', 'display'), ('language', 'Idioma', 'language'),
+       ('graphics', 'Imagem e FPS', 'display'), ('controls', 'Controles', 'controls'),
+       ('language', 'Idioma', 'language'),
        ('saves', 'Saves', 'saves'), ('help', 'Ajuda', 'help'), ('log', 'Registro', 'log')]
 
 DEFAULTS = {
@@ -173,7 +175,7 @@ def write_ini(values):
             out.append(line)
     sections = {'volume': '[Audio]', 'language_index': '[System]', 'region_index': '[System]'}
     for key in (k for k in values if k not in seen):
-        header = sections.get(key, '[Renderer]')
+        header = '[Controls]' if key.startswith('player_') else sections.get(key, '[Renderer]')
         if header not in out:
             out.append(header)
         i = out.index(header) + 1
@@ -470,6 +472,7 @@ class Launcher(tk.Tk):
         self.build_play()
         self.build_game()
         self.build_graphics()
+        self.build_controls()
         self.build_language()
         self.build_saves()
         self.build_help()
@@ -715,6 +718,213 @@ class Launcher(tk.Tk):
         self.combo(box, 'vsync', 'VSync', VSYNC)
         self.combo(box, 'mode', _('Modo do console'), MODE)
         self.pad(box)
+
+    # ---- controls -------------------------------------------------------------------------------
+    def build_controls(self):
+        """Player 1: the device (keyboard or a controller eden-cli finds), automatic mapping,
+        vibration, and each console button with what it is bound to and a Change button. The
+        bindings live in sdl2-config.ini ([Controls]), which the game reads when it starts."""
+        page = self.page('controls', _('Controles'))
+        self.bindings = C.read_bindings(INI)
+        self.pads = []
+
+        box = self.card(page, _('Dispositivo'))
+        row = tk.Frame(box, bg=T.PANEL)
+        row.pack(fill='x', padx=18, pady=(0, 6))
+        self.dev_var = tk.StringVar(value=_('Teclado'))
+        self.dev_box = ttk.Combobox(row, textvariable=self.dev_var, state='readonly', width=30,
+                                    style='Zoot.TCombobox', values=[_('Teclado')])
+        self.dev_box.pack(side='left')
+        T.Button(row, _('Mapear automaticamente'), self.automap).pack(side='right')
+        T.Button(row, _('Procurar controles'), self.find_pads).pack(side='right', padx=8)
+        row = tk.Frame(box, bg=T.PANEL)
+        row.pack(fill='x', padx=18, pady=(2, 10))
+        self.pad_status = tk.Label(row, text='', font=(T.BODY, 9), fg=T.MUTED, bg=T.PANEL)
+        self.pad_status.pack(side='left')
+        vib = self.bindings.get('vibration_enabled', 'true') != 'false'
+        strength = self.bindings.get('vibration_strength', '100')
+        tk.Label(row, text=_('Vibração'), font=(T.BODY, 10), fg=T.TEXT, bg=T.PANEL).pack(
+            side='right', padx=(10, 0))
+        T.Switch(row, vib, lambda v: write_ini(
+            {'player_0_vibration_enabled': 'true' if v else 'false'})).pack(side='right')
+        sv = tk.StringVar(value=f'{strength}%')
+        sbox = ttk.Combobox(row, values=[f'{v}%' for v in (25, 50, 75, 100)], textvariable=sv,
+                            state='readonly', width=6, style='Zoot.TCombobox')
+        sbox.pack(side='right', padx=(0, 12))
+        sbox.bind('<<ComboboxSelected>>', lambda e: write_ini(
+            {'player_0_vibration_strength': sv.get().rstrip('%')}))
+
+        box = self.card(page, _('Botões'))
+        grid = tk.Frame(box, bg=T.PANEL)
+        grid.pack(fill='x', padx=18, pady=(0, 10))
+        self.bind_labels = {}
+        entries = [(k, n, False) for k, n in C.BUTTONS] + [(k, n, True) for k, n in C.STICKS]
+        half = (len(entries) + 1) // 2
+        for i, (key, name, stick) in enumerate(entries):
+            col, r = divmod(i, half)
+            cell = tk.Frame(grid, bg=T.PANEL)
+            cell.grid(row=r, column=col, sticky='ew', padx=(0 if col == 0 else 24, 0), pady=1)
+            grid.columnconfigure(col, weight=1)
+            tk.Label(cell, text=_(name), font=(T.BODY_SEMI, 10), fg=T.GOLD, bg=T.PANEL,
+                     width=6, anchor='w').pack(side='left')
+            lbl = tk.Label(cell, text=C.describe(self.bindings.get(key), _), font=(T.BODY, 9),
+                           fg=T.TEXT, bg=T.PANEL, anchor='w')
+            lbl.pack(side='left', fill='x', expand=True)
+            self.bind_labels[key] = lbl
+            T.Button(cell, _('Mudar'), lambda k=key, n=name, s=stick: self.change_binding(k, n, s),
+                     small=True).pack(side='right')
+        tk.Label(page, text=_('Os controles valem na próxima abertura do jogo.'),
+                 font=(T.BODY, 9), fg=T.MUTED, bg=T.NIGHT).pack(anchor='w', padx=30)
+        self.find_pads(quiet=True)
+
+    def current_pad(self):
+        """The chosen controller (a dict from eden-cli) or None for the keyboard."""
+        name = self.dev_var.get()
+        return next((p for p in self.pads if p.get('name') == name), None)
+
+    def find_pads(self, quiet=False):
+        if not CORE.exists():
+            return
+        self.pad_status.config(text=_('Procurando controles...'))
+
+        def work():
+            pads = C.list_pads(CORE, BASE)
+
+            def done():
+                try:
+                    self.pads = pads
+                    self.dev_box.configure(values=[_('Teclado')] + [p['name'] for p in pads])
+                    # Show the device the bindings already use.
+                    guid = C.parse(self.bindings.get('button_a', '')).get('guid')
+                    match = next((p for p in pads if C.parse(p['params']).get('guid') == guid),
+                                 None)
+                    if match:
+                        self.dev_var.set(match['name'])
+                    elif pads and not quiet:
+                        self.dev_var.set(pads[0]['name'])
+                    self.pad_status.config(
+                        text=_('{n} controle(s) encontrado(s).', n=len(pads)) if pads
+                        else _('Nenhum controle encontrado.'))
+                except tk.TclError:
+                    pass
+            self.after(0, done)
+        threading.Thread(target=work, daemon=True).start()
+
+    def save_bindings(self, changes):
+        self.bindings.update(changes)
+        values = C.ini_values(changes)
+        values.update({'player_0_connected': 'true', 'player_0_type': 0})
+        write_ini(values)
+        for key in changes:
+            if key in self.bind_labels:
+                self.bind_labels[key].config(text=C.describe(changes[key], _))
+
+    def automap(self):
+        pad = self.current_pad()
+        if pad is None:
+            self.save_bindings(C.default_keyboard())
+            self.pad_status.config(text=_('Teclado: teclas padrão restauradas.'))
+            return
+        self.pad_status.config(text=_('Mapeando {name}...', name=pad['name']))
+
+        def work():
+            mapping = C.automap(CORE, BASE, pad['params'])
+
+            def done():
+                if mapping:
+                    self.save_bindings({k: v for k, v in mapping.items()
+                                        if k in self.bind_labels})
+                    self.pad_status.config(text=_('Mapeado: {name}', name=pad['name']))
+                else:
+                    self.pad_status.config(text=_('Não foi possível mapear o controle.'))
+            self.after(0, done)
+        threading.Thread(target=work, daemon=True).start()
+
+    def change_binding(self, key, name, stick):
+        pad = self.current_pad()
+        dlg = tk.Toplevel(self)
+        dlg.title(APP)
+        dlg.configure(bg=T.PANEL, highlightthickness=1, highlightbackground=T.GOLD)
+        dlg.resizable(False, False)
+        dlg.transient(self)
+        w, h = 460, 190
+        dlg.geometry(f'{w}x{h}+{self.winfo_rootx() + (self.winfo_width() - w) // 2}'
+                     f'+{self.winfo_rooty() + (self.winfo_height() - h) // 2}')
+        tk.Label(dlg, text=_(name), font=(T.HEAD_BOLD, 18), fg=T.GOLD, bg=T.PANEL).pack(
+            pady=(20, 6))
+        msg = tk.Label(dlg, text='', font=(T.BODY, 11), fg=T.TEXT, bg=T.PANEL, wraplength=420)
+        msg.pack()
+        hint = tk.Label(dlg, text=_('Esc cancela'), font=(T.BODY, 9), fg=T.MUTED, bg=T.PANEL)
+        hint.pack(pady=(12, 0))
+        dlg.grab_set()
+        dlg.focus_force()
+
+        if pad is None:  # keyboard: Tk captures the key itself
+            directions = [_('cima'), _('baixo'), _('esquerda'), _('direita')] if stick else []
+            keys = []
+
+            def prompt():
+                if stick:
+                    msg.config(text=_('Aperte a tecla para {dir}', dir=directions[len(keys)]))
+                else:
+                    msg.config(text=_('Aperte a tecla para {name}', name=_(name)))
+            prompt()
+
+            def on_key(event):
+                if event.keysym == 'Escape':
+                    dlg.destroy()
+                    return
+                code = C.scancode_from_key(event)
+                if code is None:
+                    return
+                if code in C.RESERVED:
+                    hint.config(text=_('F1, F7 e F11 são atalhos do ZooT.'), fg=T.RED)
+                    return
+                if not stick:
+                    self.save_bindings({key: C.key_param(code)})
+                    dlg.destroy()
+                    return
+                keys.append(code)
+                if len(keys) == 4:
+                    self.save_bindings({key: C.stick_from_keys(*keys)})
+                    dlg.destroy()
+                else:
+                    prompt()
+            dlg.bind('<KeyPress>', on_key)
+            return
+
+        # Controller: eden-cli waits for the next button or stick on the pad.
+        seconds = 10
+        proc = C.capture_pad(CORE, BASE, stick, seconds)
+        start = time.monotonic()
+        text = (_('Mova o analógico para {name}', name=_(name)) if stick
+                else _('Aperte o botão no controle para {name}', name=_(name)))
+
+        def cancel(_e=None):
+            try:
+                proc.kill()
+            except OSError:
+                pass
+            dlg.destroy()
+        dlg.bind('<Escape>', cancel)
+        dlg.protocol('WM_DELETE_WINDOW', cancel)
+
+        def poll():
+            if not dlg.winfo_exists():
+                return
+            if proc.poll() is None:
+                left = max(0, seconds - int(time.monotonic() - start))
+                msg.config(text=f'{text}  ({left}s)')
+                dlg.after(150, poll)
+                return
+            params = C.read_capture(proc)
+            if params:
+                self.save_bindings({key: params})
+                dlg.destroy()
+            else:
+                msg.config(text=_('Nada foi apertado.'))
+                dlg.after(1500, lambda: dlg.winfo_exists() and dlg.destroy())
+        poll()
 
     def build_language(self):
         page = self.page('language', _('Idioma'))
