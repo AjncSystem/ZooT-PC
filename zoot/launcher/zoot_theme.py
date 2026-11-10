@@ -28,6 +28,7 @@ GOLD = '#dcb44e'
 GOLD_LIGHT = '#f2d98d'
 GOLD_DARK = '#8a6a1e'
 GREEN = '#4c9d62'
+RED = '#ef5350'
 
 HEAD = HEAD_BOLD = 'Georgia'
 BODY = BODY_SEMI = 'Segoe UI'

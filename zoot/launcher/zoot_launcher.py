@@ -62,6 +62,11 @@ AA = [('Nenhum', 0), ('FXAA', 1), ('SMAA', 2)]
 ASPECT = [('16:9', 0), ('21:9', 2), ('16:10', 3), ('4:3', 1), ('Esticar', 4)]
 VSYNC = [('Desligado', 0), ('Mailbox', 1), ('Ligado (FIFO)', 2), ('FIFO relaxado', 3)]
 MODE = [('TV (dock)', 1), ('Portátil', 0)]
+# FPS modes, the same ones F7 cycles in the game: 60, 30, or the console's vsync raised to 240
+# (Ocarina's built-in Dynamic FPS keeps the game at its speed at any rate).
+FPS_MODES = [('60 FPS', '60'), ('30 FPS', '30'), ('Ilimitado', 'unlimited')]
+SHARPNESS = [(f'{v}%', v) for v in range(0, 201, 25)]
+MIN_RAM_GB, MIN_VRAM_GB = 16, 4
 # The console language (language_index) in each language's own name, and the region it needs.
 GAME_LANGUAGES = [
     ('Português (Brasil)', 17), ('English (US)', 1), ('English (UK)', 12),
@@ -79,8 +84,57 @@ NAV = [('play', 'Jogar', 'play'), ('game', 'Jogo', 'gameplay'),
 DEFAULTS = {
     'game': '', 'resolution': 3, 'filter': 15, 'aa': 1, 'aspect': 0, 'vsync': 2, 'mode': 1,
     'fullscreen': False, 'gpl': True, 'precache': True, 'volume': 100,
-    'game_language': 17, 'launcher_language': 'pt',
+    'game_language': 17, 'launcher_language': 'pt', 'fps_mode': '60', 'sharpness': 25,
 }
+
+
+def hardware():
+    """The graphics cards (name, memory in bytes, from the display class in the registry, where
+    the driver writes the real size; WMI caps it at 4 GB) and the installed RAM in bytes."""
+    import ctypes
+    import winreg
+    gpus = []
+    base = r'SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}'
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, base) as cls:
+            for i in range(64):
+                try:
+                    sub = winreg.EnumKey(cls, i)
+                except OSError:
+                    break
+                if not sub.isdigit():
+                    continue
+                try:
+                    with winreg.OpenKey(cls, sub) as k:
+                        name = winreg.QueryValueEx(k, 'DriverDesc')[0]
+                        try:
+                            mem = int(winreg.QueryValueEx(k, 'HardwareInformation.qwMemorySize')[0])
+                        except OSError:
+                            raw = winreg.QueryValueEx(k, 'HardwareInformation.MemorySize')[0]
+                            mem = int.from_bytes(raw, 'little') if isinstance(raw, bytes) else int(raw)
+                        if 'Basic Display' not in name and 'Remote' not in name:
+                            gpus.append((name, mem))
+                except OSError:
+                    continue
+    except OSError:
+        pass
+
+    class MemStatus(ctypes.Structure):
+        _fields_ = [('dwLength', ctypes.c_ulong), ('dwMemoryLoad', ctypes.c_ulong),
+                    ('ullTotalPhys', ctypes.c_ulonglong), ('ullAvailPhys', ctypes.c_ulonglong),
+                    ('ullTotalPageFile', ctypes.c_ulonglong), ('ullAvailPageFile', ctypes.c_ulonglong),
+                    ('ullTotalVirtual', ctypes.c_ulonglong), ('ullAvailVirtual', ctypes.c_ulonglong),
+                    ('ullAvailExtendedVirtual', ctypes.c_ulonglong)]
+    status = MemStatus()
+    status.dwLength = ctypes.sizeof(MemStatus)
+    ram = 0
+    try:
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+            ram = status.ullTotalPhys
+    except (AttributeError, OSError):
+        pass
+    gpus.sort(key=lambda g: -g[1])
+    return gpus, ram
 
 
 def load_settings():
@@ -525,6 +579,7 @@ class Launcher(tk.Tk):
 
         tk.Label(side, text=_('Ajustes rápidos').upper(), font=(T.HEAD_BOLD, 12), fg=T.GOLD,
                  bg=T.PANEL).pack(anchor='w', padx=18, pady=(16, 6))
+        self.combo(side, 'fps_mode', _('Modo de FPS'), FPS_MODES, width=15)
         self.combo(side, 'resolution', _('Resolução'), RESOLUTIONS, width=15)
         self.combo(side, 'filter', _('Filtro de escala'), FILTERS, width=15)
         self.combo(side, 'vsync', 'VSync', VSYNC, width=15)
@@ -544,20 +599,52 @@ class Launcher(tk.Tk):
         title_dir = USER / 'cache' / 'shader' / TITLE_ID.lower()
         warm = (title_dir / 'warm-compute.done').exists()
         gfx = (title_dir / 'warm-graphics.done').exists()
+        # (state, text): 'ok' green check, 'info' gold note, 'bad' red warning.
         items = [
-            (Path(self.settings['game']).exists(), _('Jogo encontrado'), _('Jogo não encontrado')),
-            (CORE.exists(), _('Núcleo do jogo (eden-cli) presente'), _('eden-cli.exe ausente')),
-            (warm and (gfx or not self.settings['gpl']), _('Shaders prontos'),
-             _('Shaders serão preparados na 1ª abertura')),
+            ('ok', _('Jogo encontrado')) if Path(self.settings['game']).exists()
+            else ('bad', _('Jogo não encontrado')),
+            ('ok', _('Núcleo do jogo (eden-cli) presente')) if CORE.exists()
+            else ('bad', _('eden-cli.exe ausente')),
+            ('ok', _('Shaders prontos')) if warm and (gfx or not self.settings['gpl'])
+            else ('info', _('Shaders serão preparados na 1ª abertura')),
         ]
-        for ok, good, bad in items:
+        if not hasattr(self, 'hw'):
+            try:
+                self.hw = hardware()
+            except Exception:  # noqa: BLE001 - the check must never break the launcher
+                self.hw = ([], 0)
+        gpus, ram = self.hw
+        gb = lambda b: b / 1024 ** 3
+        if gpus:
+            name, vram = gpus[0]
+            size = f'{gb(vram):.0f} GB' if vram else '?'
+            if vram and gb(vram) + 0.25 < MIN_VRAM_GB:
+                items.append(('bad', _('Placa de vídeo: {name} · {size} (mínimo {min} GB)',
+                                       name=name, size=size, min=MIN_VRAM_GB)))
+            else:
+                items.append(('ok', _('Placa de vídeo: {name} · {size}', name=name, size=size)))
+        else:
+            items.append(('bad', _('Placa de vídeo não encontrada')))
+        if ram:
+            if gb(ram) + 0.5 < MIN_RAM_GB:
+                items.append(('bad', _('Memória RAM: {size} GB (mínimo {min} GB)',
+                                       size=f'{gb(ram):.0f}', min=MIN_RAM_GB)))
+            else:
+                items.append(('ok', _('Memória RAM: {size} GB', size=f'{gb(ram):.0f}')))
+        icons = {'ok': ('', T.GREEN, T.TEXT), 'info': ('', T.GOLD, T.SILVER),
+                 'bad': ('', T.RED, T.RED)}
+        for state, text in items:
+            icon, icon_fg, text_fg = icons[state]
             row = tk.Frame(self.checks, bg=T.PANEL)
             row.pack(fill='x', pady=2)
-            tk.Label(row, text='' if ok else '', font=(T.ICONS, 10),
-                     fg=T.GREEN if ok else T.GOLD, bg=T.PANEL).pack(side='left', padx=(0, 8))
-            tk.Label(row, text=good if ok else bad, font=(T.BODY, 10),
-                     fg=T.TEXT if ok else T.SILVER, bg=T.PANEL, wraplength=600,
-                     justify='left').pack(side='left')
+            tk.Label(row, text=icon, font=(T.ICONS, 10), fg=icon_fg, bg=T.PANEL).pack(
+                side='left', anchor='n', padx=(0, 8), pady=(2, 0))
+            label = tk.Label(row, text=text, font=(T.BODY, 10), fg=text_fg, bg=T.PANEL,
+                             justify='left', anchor='w')
+            label.pack(side='left', fill='x', expand=True)
+            # Wrap to the card's width, so a long card name never runs out of it.
+            label.bind('<Configure>', lambda e, l=label: l.configure(
+                wraplength=max(120, e.width - 4)))
 
     def draw_hero(self):
         c = self.hero
@@ -614,9 +701,15 @@ class Launcher(tk.Tk):
         box = self.card(page, _('Imagem'))
         self.combo(box, 'resolution', _('Resolução'), RESOLUTIONS)
         self.combo(box, 'filter', _('Filtro de escala'), FILTERS)
+        self.combo(box, 'sharpness', _('Nitidez (FSR)'), SHARPNESS)
         self.combo(box, 'aa', _('Anti-serrilhado'), AA)
         self.combo(box, 'aspect', _('Proporção'), ASPECT)
         self.pad(box)
+        box = self.card(page, 'FPS')
+        self.combo(box, 'fps_mode', _('Modo de FPS'), FPS_MODES)
+        tk.Label(box, text=_('No jogo: F7 alterna 60 → 30 → ilimitado na hora.'),
+                 font=(T.BODY, 9), fg=T.MUTED, bg=T.PANEL).pack(anchor='w', padx=18,
+                                                                pady=(0, 10))
         box = self.card(page, _('Tela'))
         self.switch(box, 'fullscreen', _('Tela cheia'))
         self.combo(box, 'vsync', 'VSync', VSYNC)
@@ -706,6 +799,16 @@ class Launcher(tk.Tk):
 
     def build_help(self):
         page = self.page('help', _('Ajuda'))
+        box = self.card(page, _('Atalhos no jogo'))
+        for key, text in (('F1', _('Menu ZooT: vídeo, FPS, tela, volume e resolução na hora')),
+                          ('F7', _('Modo de FPS: 60 → 30 → ilimitado')),
+                          ('F11', _('Tela cheia / janela'))):
+            row = tk.Frame(box, bg=T.PANEL)
+            row.pack(fill='x', padx=18, pady=2)
+            tk.Label(row, text=key, font=(T.BODY_SEMI, 10), fg=T.GOLD, bg=T.PANEL, width=5,
+                     anchor='w').pack(side='left')
+            tk.Label(row, text=text, font=(T.BODY, 10), fg=T.TEXT, bg=T.PANEL).pack(side='left')
+        self.pad(box)
         for title, text in I18N.HELP.get(I18N.LANG, I18N.HELP['pt']):
             box = self.card(page, title)
             tk.Label(box, text=text, font=(T.BODY, 10), fg=T.TEXT, bg=T.PANEL, wraplength=700,
@@ -783,6 +886,10 @@ class Launcher(tk.Tk):
             'precache_shaders': 2 if s['precache'] else 0,
             'use_disk_shader_cache': 'true', 'volume': s['volume'],
             'language_index': lang, 'region_index': REGION_OF.get(lang, 1),
+            'fsr_sharpening_slider': s['sharpness'],
+            # FPS mode, as F7 sets it in the game.
+            'fps_limit': 30 if s['fps_mode'] == '30' else 0,
+            'nx2_frame_rate_limit': 240 if s['fps_mode'] == 'unlimited' else 60,
         })
 
     def play(self):

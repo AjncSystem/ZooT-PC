@@ -8,6 +8,7 @@
 
 #include <atomic>
 #include <cstdlib>
+#include <memory>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -39,6 +40,10 @@ inline SDL_WindowFlags Nx2HiddenWindowFlags() {
 /// ZooT-PC: "ZooT v<version>", the start of every window title.
 std::string ZootBaseTitle();
 
+namespace ZooT {
+class Overlay;
+}
+
 class EmuWindow_SDL3 : public Core::Frontend::EmuWindow {
 public:
     explicit EmuWindow_SDL3(InputCommon::InputSubsystem* input_subsystem_, Core::System& system_);
@@ -58,6 +63,9 @@ public:
 
     // Sets the window icon from yuzu.bmp
     void SetWindowIcon();
+
+    /// ZooT-PC: the F1 menu and notices, redrawn from the main loop.
+    void ZootTick();
 
 protected:
     /// Called by WaitEvent when a key is pressed or released.
@@ -120,6 +128,9 @@ protected:
 
     /// yuzu core instance
     Core::System& system;
+
+    /// ZooT-PC hotkeys (F1 menu, F7 FPS, F11 fullscreen), made on first use.
+    std::unique_ptr<ZooT::Overlay> zoot_overlay;
 };
 
 class DummyContext : public Core::Frontend::GraphicsContext {};

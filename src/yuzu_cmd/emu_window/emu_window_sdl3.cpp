@@ -29,6 +29,7 @@
 #include "input_common/main.h"
 #include "yuzu_cmd/emu_window/emu_window_sdl3.h"
 #include "yuzu_cmd/yuzu_icon.h"
+#include "yuzu_cmd/zoot_overlay.h"
 
 // ZooT-PC window title, as the SotC-PC port does: the port and its version, the game (read from
 // the player's copy) and its version, the frame rate and how long the game has been open.
@@ -191,10 +192,25 @@ void EmuWindow_SDL3::OnKeyEvent(int key, u8 state) {
                      state != 0 ? "" : "-", key);
         std::fflush(record);
     }
+    // ZooT-PC hotkeys and the F1 menu see the key first.
+    if (!zoot_overlay && render_window) {
+        zoot_overlay = std::make_unique<ZooT::Overlay>(system, render_window, [this] {
+            OnResize();
+        });
+    }
+    if (zoot_overlay && zoot_overlay->HandleKey(key, state != 0)) {
+        return;
+    }
     if (state != 0) {
         input_subsystem->GetKeyboard()->PressKey(static_cast<std::size_t>(key));
     } else {
         input_subsystem->GetKeyboard()->ReleaseKey(static_cast<std::size_t>(key));
+    }
+}
+
+void EmuWindow_SDL3::ZootTick() {
+    if (zoot_overlay) {
+        zoot_overlay->Tick();
     }
 }
 

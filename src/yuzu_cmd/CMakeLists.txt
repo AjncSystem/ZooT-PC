@@ -36,12 +36,16 @@ add_executable(yuzu-cmd
     sdl_config.h
     zoot_loading_screen.cpp
     zoot_loading_screen.h
+    zoot_overlay.cpp
+    zoot_overlay.h
     yuzu.cpp
     yuzu.rc
     ${OPENGL_SOURCES}
 )
 
 target_link_libraries(yuzu-cmd PRIVATE common core input_common frontend_common video_core)
+# ZooT-PC: the F1 menu saves its changes to the launcher's settings (user/zoot/launcher.json).
+target_link_libraries(yuzu-cmd PRIVATE nlohmann_json::nlohmann_json)
 if (ENABLE_OPENGL)
     target_link_libraries(yuzu-cmd PRIVATE glad)
 endif()

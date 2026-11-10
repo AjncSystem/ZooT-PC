@@ -1084,6 +1084,7 @@ extern "C" SDL_AppResult SDL_AppIterate(void *appstate) {
     RunKeyScript(state->input_subsystem);
     if (state->emu_window) {
         state->emu_window->ApplyPendingTitle();
+        state->emu_window->ZootTick();
     }
     if (restart_requested) {
         return SDL_APP_SUCCESS;
