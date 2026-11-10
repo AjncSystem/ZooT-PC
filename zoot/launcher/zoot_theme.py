@@ -16,6 +16,8 @@ else:
     ASSETS = Path(__file__).resolve().parent / 'assets'
 
 NIGHT = '#0a1120'
+SIDE = '#070c18'
+TEXT_STRONG = '#f6f8fc'
 PANEL = '#101a2e'
 CARD = '#15223b'
 BORDER = '#283a5e'
@@ -29,11 +31,25 @@ GREEN = '#4c9d62'
 
 HEAD = HEAD_BOLD = 'Georgia'
 BODY = BODY_SEMI = 'Segoe UI'
+ICONS = 'Segoe MDL2 Assets'
 SS = 4
+
+# Segoe Fluent Icons (Windows 11) / Segoe MDL2 Assets (Windows 10), as in the SotC-PC launcher.
+ICON = {'play': '', 'display': '', 'gameplay': '', 'language': '',
+        'saves': '', 'help': '', 'log': '', 'folder': ''}
+
+
+def pill(w, h, fill, outline, bg):
+    """A rounded card for the side bar (the current page, the hovered one, the gold accent)."""
+    big = Image.new('RGBA', (w * SS, h * SS), rgba(bg))
+    ImageDraw.Draw(big).rounded_rectangle(
+        [0, 0, w * SS - 1, h * SS - 1], min(8, h // 2) * SS, fill=rgba(fill),
+        outline=rgba(outline) if outline else None, width=SS)
+    return ImageTk.PhotoImage(big.resize((w, h), Image.LANCZOS))
 
 
 def load_fonts(root):
-    global HEAD, HEAD_BOLD, BODY, BODY_SEMI
+    global HEAD, HEAD_BOLD, BODY, BODY_SEMI, ICONS
     import tkinter.font as tkfont
     for path in sorted((ASSETS / 'fonts').glob('*.ttf')):
         try:
@@ -46,6 +62,7 @@ def load_fonts(root):
     HEAD_BOLD = pick('Cinzel Bold', 'Cinzel SemiBold', 'Georgia')
     BODY = pick('Inter', 'Segoe UI')
     BODY_SEMI = pick('Inter SemiBold', 'Inter', 'Segoe UI Semibold')
+    ICONS = pick('Segoe Fluent Icons', 'Segoe MDL2 Assets')
 
 
 def rgba(color, alpha=255):
@@ -139,6 +156,11 @@ class Switch(tk.Label):
         self.config(image=self.images[self.value])
         self.on_change(self.value)
 
+    def set(self, value):
+        """Shows `value` without calling on_change (another page changed the option)."""
+        self.value = bool(value)
+        self.config(image=self.images[self.value])
+
 
 def hero_card(size, art, fallback):
     """The game card: the player's own game art over a blurred, darkened copy of itself, in a
@@ -153,7 +175,15 @@ def hero_card(size, art, fallback):
         except OSError:
             src = None
     base = vgrad(size, rgba('#1b2c4c'), rgba('#0b1426'))
-    if src is not None:
+    if src is not None and src.width / src.height > 1.2:
+        # A wide picture (a cover or a screenshot): it fills the whole card.
+        scale = max(w / src.width, h / src.height)
+        full = src.resize((int(src.width * scale) + 1, int(src.height * scale) + 1),
+                          Image.LANCZOS)
+        left = (full.width - w) // 2
+        top = max(0, int((full.height - h) * 0.35))
+        base = full.crop((left, top, left + w, top + h))
+    elif src is not None:
         # blurred background filling the card
         scale = max(w / src.width, h / src.height)
         bg = src.resize((int(src.width * scale) + 1, int(src.height * scale) + 1), Image.LANCZOS)

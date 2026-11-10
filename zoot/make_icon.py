@@ -312,9 +312,77 @@ def ocarina(cx, cy):
     return Image.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(10)), out)
 
 
+def sword():
+    """A plain longsword drawn diagonally (hilt lower left, tip upper right): a straight silver
+    blade with a fuller, a straight gold crossguard, a leather-wrapped grip and a round pommel."""
+    layer = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    x0, y0 = S * 0.13, S * 0.90   # pommel end
+    x1, y1 = S * 0.90, S * 0.10   # tip
+    length = math.hypot(x1 - x0, y1 - y0)
+    dx, dy = (x1 - x0) / length, (y1 - y0) / length
+    px, py = -dy, dx
+
+    def at(t, off=0.0):
+        return (x0 + dx * length * t + px * off, y0 + dy * length * t + py * off)
+
+    guard_t, grip_t = 0.27, 0.07
+    bw = S * 0.036  # half blade width
+    blade = [at(guard_t, bw), at(0.90, bw), at(1.0, 0), at(0.90, -bw), at(guard_t, -bw)]
+    blade_mask = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(blade_mask).polygon(blade, fill=255)
+    steel = gradient((S, S), SILVER_LIGHT, SILVER_DARK, diagonal=True)
+    layer.paste(steel, (0, 0), blade_mask)
+    # bright edge on one side, fuller down the middle
+    d.line([at(guard_t + 0.01, bw * 0.55), at(0.9, bw * 0.55)], fill=(255, 255, 255, 220),
+           width=int(S * 0.008))
+    d.line([at(guard_t + 0.02, -bw * 0.05), at(0.82, -bw * 0.05)], fill=SILVER_DARK,
+           width=int(S * 0.012))
+    d.line(blade + [blade[0]], fill=(70, 78, 92, 255), width=5)
+    # grip with leather wraps
+    gw = S * 0.024
+    grip = [at(grip_t, gw), at(guard_t, gw), at(guard_t, -gw), at(grip_t, -gw)]
+    d.polygon(grip, fill=(96, 58, 30, 255), outline=(52, 30, 14, 255))
+    for k in range(7):
+        t = grip_t + (guard_t - grip_t) * (k + 0.5) / 7
+        d.line([at(t - 0.012, gw), at(t + 0.012, -gw)], fill=(60, 34, 16, 255), width=5)
+    # crossguard
+    cg = S * 0.135
+    ct = S * 0.022
+    guard = [at(guard_t - ct / length, cg), at(guard_t + ct / length, cg),
+             at(guard_t + ct / length, -cg), at(guard_t - ct / length, -cg)]
+    gmask = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(gmask).polygon(guard, fill=255)
+    layer.paste(gradient((S, S), GOLD_LIGHT, GOLD_DARK, diagonal=True), (0, 0), gmask)
+    d.line(guard + [guard[0]], fill=GOLD_DARK, width=5)
+    for side in (1, -1):
+        cx, cy = at(guard_t, side * cg)
+        r = S * 0.026
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=GOLD, outline=GOLD_DARK, width=5)
+    # pommel
+    pxm, pym = at(grip_t - 0.025)
+    r = S * 0.038
+    d.ellipse([pxm - r, pym - r, pxm + r, pym + r], fill=GOLD, outline=GOLD_DARK, width=6)
+    d.ellipse([pxm - r * 0.45, pym - r * 0.6, pxm + r * 0.1, pym - r * 0.1],
+              fill=GOLD_LIGHT)
+    shadow = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    shadow.paste(Image.new("RGBA", (S, S), (0, 0, 0, 130)), (8, 12), layer.split()[3])
+    return Image.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(10)), layer)
+
+
+def with_sword(shield):
+    """The shield, a little smaller, over the sword crossing behind it."""
+    out = sword()
+    scale = 0.80
+    small = shield.resize((int(S * scale), int(S * scale)), Image.LANCZOS)
+    out.alpha_composite(small, (int(S * (1 - scale) / 2), int(S * (1 - scale) / 2)))
+    return out
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
-    big = draw()
+    big = with_sword(draw())
+    big.resize((128, 128), Image.LANCZOS).save(os.path.join(OUT, "zoot-128.png"))
     big.resize((512, 512), Image.LANCZOS).save(os.path.join(OUT, "zoot-preview.png"))
     big.resize((256, 256), Image.LANCZOS).save(
         os.path.join(OUT, "zoot.ico"), sizes=[(s, s) for s in (16, 24, 32, 48, 64, 128, 256)])

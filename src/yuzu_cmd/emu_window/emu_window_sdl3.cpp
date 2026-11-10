@@ -19,6 +19,8 @@
 #include "common/scm_rev.h"
 #include "common/settings.h"
 #include "core/core.h"
+#include "core/file_sys/control_metadata.h"
+#include "core/loader/loader.h"
 #include "core/perf_stats.h"
 #include "hid_core/hid_core.h"
 #include "input_common/drivers/keyboard.h"
@@ -27,6 +29,43 @@
 #include "input_common/main.h"
 #include "yuzu_cmd/emu_window/emu_window_sdl3.h"
 #include "yuzu_cmd/yuzu_icon.h"
+
+// ZooT-PC window title, as the SotC-PC port does: the port and its version, the game (read from
+// the player's copy) and its version, the frame rate and how long the game has been open.
+// ZOOT_PORT_VERSION (set by the launcher) overrides the built-in version.
+std::string ZootBaseTitle() {
+    const char* const port = std::getenv("ZOOT_PORT_VERSION");
+    return fmt::format("ZooT v{}", port && *port ? port : "0.10");
+}
+
+static std::string ZootWindowTitle(Core::System& system, double fps) {
+    static std::string game;
+    static std::string version;
+    static const auto opened = std::chrono::steady_clock::now();
+    if (game.empty() && system.IsPoweredOn()) {
+        std::string name;
+        if (system.GetGameName(name) == Loader::ResultStatus::Success && !name.empty()) {
+            game = name;
+            FileSys::NACP nacp;
+            if (system.GetAppLoader().ReadControlData(nacp) == Loader::ResultStatus::Success) {
+                version = nacp.GetVersionString();
+            }
+        }
+    }
+    const long long s = std::chrono::duration_cast<std::chrono::seconds>(
+                            std::chrono::steady_clock::now() - opened)
+                            .count();
+    std::string title = ZootBaseTitle();
+    if (!game.empty()) {
+        title += " — " + game;
+    }
+    if (!version.empty()) {
+        title += " · v" + version;
+    }
+    title += fmt::format(" · {:.0f} FPS · {}:{:02}:{:02}", fps, s / 3600, s / 60 % 60,
+                         s % 60);
+    return title;
+}
 
 EmuWindow_SDL3::EmuWindow_SDL3(InputCommon::InputSubsystem* input_subsystem_, Core::System& system_)
     : input_subsystem{input_subsystem_}, system{system_} {
@@ -39,7 +78,7 @@ EmuWindow_SDL3::EmuWindow_SDL3(InputCommon::InputSubsystem* input_subsystem_, Co
     titlebar_timer = SDL_AddTimer(2000, [](void *userdata, SDL_TimerID, Uint32) -> Uint32 {
         auto* this_ = (EmuWindow_SDL3*)userdata;
         auto const results = this_->system.GetAndResetPerfStats();
-        auto* const title = new std::string(fmt::format("{} | {}-{} | FPS: {:.0f} ({:.0f}%)", Common::g_build_fullname, Common::g_scm_branch, Common::g_scm_desc, results.average_game_fps, results.emulation_speed * 100.0f));
+        auto* const title = new std::string(ZootWindowTitle(this_->system, results.average_game_fps));
         // Timers run on their own thread and AppKit throws when a title is set off the main
         // thread: ApplyPendingTitle sets it from the main loop.
         delete this_->pending_title.exchange(title);
@@ -282,9 +321,10 @@ void EmuWindow_SDL3::SetWindowIcon() {
         LOG_WARNING(Frontend, "Failed to create Eden icon stream.");
         return;
     }
-    SDL_Surface* const window_icon = SDL_LoadBMP_IO(yuzu_icon_stream, true);
+    // ZooT-PC: the embedded icon is the ZooT shield as a PNG (dist/zoot-128.png).
+    SDL_Surface* const window_icon = SDL_LoadPNG_IO(yuzu_icon_stream, true);
     if (window_icon == nullptr) {
-        LOG_WARNING(Frontend, "Failed to read BMP from stream.");
+        LOG_WARNING(Frontend, "Failed to read the window icon: {}", SDL_GetError());
         return;
     }
     // The icon is attached to the window pointer

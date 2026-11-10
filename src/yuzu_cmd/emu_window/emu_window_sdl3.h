@@ -36,6 +36,9 @@ inline SDL_WindowFlags Nx2HiddenWindowFlags() {
                                                          : SDL_WindowFlags{0};
 }
 
+/// ZooT-PC: "ZooT v<version>", the start of every window title.
+std::string ZootBaseTitle();
+
 class EmuWindow_SDL3 : public Core::Frontend::EmuWindow {
 public:
     explicit EmuWindow_SDL3(InputCommon::InputSubsystem* input_subsystem_, Core::System& system_);

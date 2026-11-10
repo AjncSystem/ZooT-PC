@@ -11,6 +11,7 @@
 #include "common/fs/path_util.h"
 #include "common/logging.h"
 #include "video_core/shader_warm/shader_warm_builder.h"
+#include "yuzu_cmd/emu_window/emu_window_sdl3.h"
 #include "yuzu_cmd/zoot_loading_screen.h"
 
 namespace ZooT {
@@ -79,7 +80,7 @@ void ApplyPlayerIcon(SDL_Window* window) {
 LoadingScreen::LoadingScreen()
     : owner{std::this_thread::get_id()}, begin{std::chrono::steady_clock::now()},
       stage_begin{begin} {
-    if (!SDL_CreateWindowAndRenderer("ZooT-PC", Width, Height,
+    if (!SDL_CreateWindowAndRenderer(ZootBaseTitle().c_str(), Width, Height,
                                      SDL_WINDOW_BORDERLESS | SDL_WINDOW_ALWAYS_ON_TOP, &window,
                                      &renderer)) {
         LOG_WARNING(Frontend, "ZooT loading screen: {}", SDL_GetError());
@@ -165,7 +166,7 @@ void LoadingScreen::Draw() {
     SDL_FRect panel{9, 9, Width - 18, Height - 18};
     SDL_RenderFillRect(renderer, &panel);
 
-    CenteredText(renderer, "ZooT-PC", 24, 4.0f, Gold);
+    CenteredText(renderer, ZootBaseTitle(), 24, 4.0f, Gold);
     CenteredText(renderer, current, 82, 2.0f, Parchment);
 
     // Progress bar.
