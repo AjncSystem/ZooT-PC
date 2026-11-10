@@ -17,13 +17,15 @@ else:
 
 NIGHT = '#0a1120'
 SIDE = '#070c18'
-TEXT_STRONG = '#f6f8fc'
+# Text in golds (the player's request): light gold for reading, stronger gold for what is
+# chosen, a dim gold for hints, all readable on night blue.
+TEXT_STRONG = '#fbe6a6'
 PANEL = '#101a2e'
 CARD = '#15223b'
 BORDER = '#283a5e'
-TEXT = '#e9edf4'
-MUTED = '#8c98af'
-SILVER = '#c3ccda'
+TEXT = '#efd690'
+MUTED = '#a8935c'
+SILVER = '#d9bd6a'
 GOLD = '#dcb44e'
 GOLD_LIGHT = '#f2d98d'
 GOLD_DARK = '#8a6a1e'
@@ -258,7 +260,10 @@ def apply(root):
                     arrowcolor=GOLD, bordercolor=BORDER, lightcolor=CARD, darkcolor=CARD,
                     selectbackground=CARD, selectforeground=TEXT, padding=4)
     style.map('Zoot.TCombobox', fieldbackground=[('readonly', CARD)],
-              foreground=[('readonly', TEXT)], bordercolor=[('focus', GOLD)])
+              foreground=[('readonly', TEXT), ('!disabled', TEXT)],
+              selectforeground=[('readonly', TEXT), ('!disabled', TEXT)],
+              selectbackground=[('readonly', CARD), ('!disabled', CARD)],
+              bordercolor=[('focus', GOLD)])
     root.option_add('*TCombobox*Listbox.background', CARD)
     root.option_add('*TCombobox*Listbox.foreground', TEXT)
     root.option_add('*TCombobox*Listbox.selectBackground', GOLD_DARK)
