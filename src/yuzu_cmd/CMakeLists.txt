@@ -34,6 +34,8 @@ add_executable(yuzu-cmd
     emu_window/emu_window_sdl3_vk.h
     sdl_config.cpp
     sdl_config.h
+    zoot_loading_screen.cpp
+    zoot_loading_screen.h
     yuzu.cpp
     yuzu.rc
     ${OPENGL_SOURCES}

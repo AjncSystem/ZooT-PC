@@ -63,6 +63,7 @@
 #endif
 #include "yuzu_cmd/emu_window/emu_window_sdl3_null.h"
 #include "yuzu_cmd/emu_window/emu_window_sdl3_vk.h"
+#include "yuzu_cmd/zoot_loading_screen.h"
 
 #if defined(__unix__) || defined(__APPLE__)
 #include <sys/resource.h>
@@ -565,7 +566,63 @@ static bool BuildWarm(Core::System& system, int argc, char** argv) {
 // counts as yes, there is no dialog), the game's compute programs are extracted from its files
 // once, and every boot builds them with the cached graphics pipelines before the game starts,
 // instead of mid-game. The renderer redoes it only when the driver or the precache file changed.
-static void PrepareShaderPrecache(Core::System& system, const std::string& game_path) {
+/// ZooT-PC launcher hook (not in --help): writes the game's own icon and title, read from the
+/// player's copy, for the launcher's game card. Nothing is shipped with the launcher.
+///   eden-cli --zoot-export-art <game file> <output dir>
+/// Writes <output dir>/game-icon.jpg (or .png) and game-title.txt.
+static bool ExportGameArt(Core::System& system, int argc, char** argv) {
+    if (argc < 4) {
+        fmt::print(stderr, "usage: --zoot-export-art <game> <output dir>\n");
+        return false;
+    }
+    system.SetContentProvider(std::make_unique<FileSys::ContentProviderUnion>());
+    system.SetFilesystem(std::make_shared<FileSys::RealVfsFilesystem>());
+    const auto file = Core::GetGameFileFromPath(system.GetFilesystem(), argv[2]);
+    const auto loader = file ? Loader::GetLoader(system, file, 0, 0) : nullptr;
+    if (loader == nullptr) {
+        fmt::print(stderr, "no loader for {}\n", argv[2]);
+        return false;
+    }
+    const std::filesystem::path out = Common::FS::ToU8String(argv[3]);
+    std::error_code ec;
+    std::filesystem::create_directories(out, ec);
+    bool any = false;
+    std::vector<u8> icon;
+    if (loader->ReadIcon(icon) == Loader::ResultStatus::Success && icon.size() > 8) {
+        const bool png = icon[0] == 0x89 && icon[1] == 'P' && icon[2] == 'N' && icon[3] == 'G';
+        std::ofstream stream{out / (png ? "game-icon.png" : "game-icon.jpg"), std::ios::binary};
+        stream.write(reinterpret_cast<const char*>(icon.data()),
+                     static_cast<std::streamsize>(icon.size()));
+        any = stream.good();
+    }
+    std::string title;
+    if (loader->ReadTitle(title) == Loader::ResultStatus::Success && !title.empty()) {
+        std::ofstream stream{out / "game-title.txt", std::ios::binary};
+        stream << title;
+        any = true;
+    }
+    fmt::print("{{\"icon\": {}, \"title\": \"{}\"}}\n", icon.size(), title);
+    return any;
+}
+
+static std::string LoadingStageName(std::string_view stage) {
+    if (stage == "Reading game files") {
+        return "Lendo os arquivos do jogo";
+    }
+    if (stage == "Extracting shaders") {
+        return "Extraindo os shaders do jogo";
+    }
+    if (stage == "Converting") {
+        return "Convertendo os shaders";
+    }
+    if (stage == "Writing") {
+        return "Gravando o pre-cache";
+    }
+    return std::string{stage};
+}
+
+static void PrepareShaderPrecache(Core::System& system, const std::string& game_path,
+                                  ZooT::LoadingScreen* screen) {
     namespace ShaderWarm = VideoCommon::ShaderWarm;
     ShaderWarm::RequestWarmBeforeStart(false);
     if (Settings::values.precache_shaders.GetValue() == Settings::PrecacheShaders::Off ||
@@ -580,18 +637,26 @@ static void PrepareShaderPrecache(Core::System& system, const std::string& game_
         LOG_WARNING(Frontend, "Shader precache: no program id, starting without it");
         return;
     }
-    if (!ShaderWarm::WarmPending(title_id)) {
+    std::error_code ec;
+    // With pipeline libraries the builder also writes the vertex and fragment programs
+    // (warm-graphics.bin); a compute-only precache from before needs that file built once.
+    const bool graphics_missing =
+        Settings::values.use_graphics_pipeline_library.GetValue() &&
+        !std::filesystem::exists(ShaderWarm::GraphicsWarmPath(title_id), ec);
+    if (!ShaderWarm::WarmPending(title_id) && !graphics_missing) {
         ShaderWarm::RequestWarmBeforeStart(true);
         return;
     }
-    std::error_code ec;
-    if (!std::filesystem::exists(ShaderWarm::ComputeWarmPath(title_id), ec)) {
+    if (!std::filesystem::exists(ShaderWarm::ComputeWarmPath(title_id), ec) || graphics_missing) {
         LOG_INFO(Frontend, "Shader precache: extracting the shaders of {:016X} from the game files",
                  title_id);
         const auto begin = std::chrono::steady_clock::now();
         std::string last_stage;
         auto last_print = begin;
         const auto on_progress = [&](const ShaderWarm::Progress& progress) {
+            if (screen) {
+                screen->Update(LoadingStageName(progress.stage), progress.done, progress.total);
+            }
             const auto now = std::chrono::steady_clock::now();
             if (progress.stage == last_stage && now - last_print < std::chrono::seconds{5}) {
                 return;
@@ -604,8 +669,10 @@ static void PrepareShaderPrecache(Core::System& system, const std::string& game_
         const auto result = ShaderWarm::BuildWarmFiles(
             system, Common::FS::ToU8String(game_path), title_id, on_progress, {});
         LOG_INFO(Frontend,
-                 "Shader precache: ok={} archives={} compute={} skipped={} in {:.1f} s {}",
-                 result.ok, result.archives, result.compute_programs, result.skipped,
+                 "Shader precache: ok={} archives={} compute={} vertex={} fragment={} skipped={} "
+                 "in {:.1f} s {}",
+                 result.ok, result.archives, result.compute_programs, result.vertex_programs,
+                 result.fragment_programs, result.skipped,
                  std::chrono::duration<double>(std::chrono::steady_clock::now() - begin).count(),
                  result.error);
         if (!result.ok || !std::filesystem::exists(ShaderWarm::ComputeWarmPath(title_id), ec)) {
@@ -647,6 +714,9 @@ extern "C" SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
 
     if (argc > 1 && std::string_view{argv[1]} == "--build-warm") {
         return BuildWarm(state->system, argc, argv) ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
+    }
+    if (argc > 1 && std::string_view{argv[1]} == "--zoot-export-art") {
+        return ExportGameArt(state->system, argc, argv) ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
     }
 
     int option_index = 0;
@@ -756,8 +826,15 @@ extern "C" SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
         load_parameters.previous_program_index = handoff->previous_program_index;
         LOG_INFO(Frontend, "Restarted by the game: program index {}, {} user channel entries",
                  handoff->program_index, state->system.GetUserChannel().size());
-    } else {
-        PrepareShaderPrecache(state->system, lp.filepath);
+    }
+    ZooT::ApplyPlayerIcon();
+    // ZooT-PC loading screen, from the shader extraction until the shaders are loaded.
+    std::unique_ptr<ZooT::LoadingScreen> loading_screen;
+    if (Settings::values.use_disk_shader_cache.GetValue()) {
+        loading_screen = std::make_unique<ZooT::LoadingScreen>();
+    }
+    if (!restarted) {
+        PrepareShaderPrecache(state->system, lp.filepath, loading_screen.get());
     }
     const Core::SystemResultStatus load_result = state->system.Load(*state->emu_window, lp.filepath, load_parameters);
     switch (load_result) {
@@ -816,8 +893,28 @@ extern "C" SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
     if (Settings::values.use_disk_shader_cache.GetValue()) {
         state->system.Renderer().ReadRasterizer()->LoadDiskResources(
             state->system.GetApplicationProcessProgramID(), std::stop_token{},
-            [](VideoCore::LoadCallbackStage, size_t value, size_t total) {});
+            [screen = loading_screen.get()](VideoCore::LoadCallbackStage stage, size_t value,
+                                            size_t total) {
+                if (!screen) {
+                    return;
+                }
+                switch (stage) {
+                case VideoCore::LoadCallbackStage::Prepare:
+                    screen->Update("Lendo o cache de shaders", value, total);
+                    break;
+                case VideoCore::LoadCallbackStage::Build:
+                    screen->Update("Carregando os shaders salvos", value, total);
+                    break;
+                case VideoCore::LoadCallbackStage::Warm:
+                    screen->Update("Pre-compilando os shaders do jogo", value, total);
+                    break;
+                case VideoCore::LoadCallbackStage::Complete:
+                    screen->Update("Iniciando o jogo", value, total);
+                    break;
+                }
+            });
     }
+    loading_screen.reset();
 
     // don't do anything, SDL3 already exists for us :D
     state->system.RegisterExitCallback([] {});

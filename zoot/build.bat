@@ -40,6 +40,7 @@ goto build
   "-DCMAKE_CXX_COMPILER=%LLVM%/clang-cl.exe" ^
   "-DCMAKE_LINKER=%LLVM%/lld-link.exe" ^
   "-DCMAKE_AR=%LLVM%/llvm-lib.exe" ^
+  "-DCMAKE_RC_COMPILER=%LLVM%/llvm-rc.exe" ^
   "-DCMAKE_C_FLAGS=%FLAGS%" ^
   "-DCMAKE_CXX_FLAGS=-EHsc %FLAGS%" || exit /b 1
 

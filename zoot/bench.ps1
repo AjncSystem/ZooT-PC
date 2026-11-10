@@ -5,7 +5,9 @@ param(
     [int]$Seconds = 240,
     [string]$Exe = 'Z:\build\bin\eden-cli.exe',
     [string]$Env = '',
-    [switch]$Keep  # keep the caches of an earlier run with this label (second boot)
+    [string]$Ini = '',  # "key=value,..." set in the run's copy of sdl2-config.ini
+    [switch]$Keep,  # keep the caches of an earlier run with this label (second boot)
+    [string]$Seed = ''  # title cache folder to start from (pipeline caches only, no warm files)
 )
 $ErrorActionPreference = 'Stop'
 $game = (Get-ChildItem -LiteralPath 'E:\Zelda Remaster switch 2\The Legend of Zelda Ocarina of Time [0400486024DEC000][v131072]' -Filter *.nup).FullName
@@ -19,6 +21,25 @@ Copy-Item -Force 'Z:\build\bin\nx2_switches.txt' "$dir\"
 if (-not $Keep) {
     # Same settings as the play install (precache on), no saves: the title screen needs none.
     Copy-Item -Force 'Z:\build\bin\user\config\sdl2-config.ini' "$dir\user\config\"
+    $iniPath = "$dir\user\config\sdl2-config.ini"
+    $text = [IO.File]::ReadAllText($iniPath)
+    foreach ($kv in ($Ini -split ',' | Where-Object { $_ })) {
+        $k, $v = $kv -split '=', 2
+        $k = $k.Trim(); $v = $v.Trim()
+        $text = $text -replace "(?m)^$([regex]::Escape($k))\\default=true", "$k\default=false"
+        if ($text -match "(?m)^$([regex]::Escape($k))=") {
+            $text = $text -replace "(?m)^$([regex]::Escape($k))=.*$", "$k=$v"
+        } else {
+            $text = $text -replace '(?m)^\[Renderer\]\r?$', "[Renderer]`r`n$k\default=false`r`n$k=$v"
+        }
+    }
+    [IO.File]::WriteAllText($iniPath, $text, (New-Object Text.UTF8Encoding($false)))
+    if ($Seed) {
+        $tc = "$dir\user\cache\shader\0400486024dec000"
+        New-Item -ItemType Directory -Force $tc | Out-Null
+        Get-ChildItem $Seed -File | Where-Object { $_.Name -notmatch '^(warm-|precache-)|\.lock$' } |
+            Copy-Item -Destination $tc -Force
+    }
 }
 $log = "$dir\user\log\eden_log.txt"
 if (Test-Path $log) { Remove-Item -Force $log }
