@@ -33,7 +33,7 @@ import zoot_update as U  # noqa: E402
 from zoot_i18n import _  # noqa: E402
 
 APP = 'ZooT-PC'
-VERSION = '0.11'
+VERSION = '0.11.1'
 TITLE_ID = '0400486024DEC000'
 GAME_EXTS = ('.nup', '.nx', '.nsp', '.xci')
 
@@ -1197,7 +1197,7 @@ class Launcher(tk.Tk):
             return
         self.settings['last_update_check'] = now
         save_settings(self.settings)
-        if manual:
+        if manual and hasattr(self, 'status'):
             self.status.config(text=_('Procurando atualização...'))
 
         def work():
@@ -1305,6 +1305,14 @@ class Launcher(tk.Tk):
             self.refresh_status()
 
     def refresh_status(self):
+        # The welcome screen (no game chosen yet) has no status bar.
+        if not hasattr(self, 'status'):
+            return
+        try:
+            if not self.status.winfo_exists():
+                return
+        except tk.TclError:
+            return
         title_dir = USER / 'cache' / 'shader' / TITLE_ID.lower()
         warm = (title_dir / 'warm-compute.done').exists()
         gfx = (title_dir / 'warm-graphics.done').exists()

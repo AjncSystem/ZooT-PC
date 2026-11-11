@@ -58,11 +58,15 @@ the card and behind the loading screen, on your PC only.*
 
 ## Install
 
-1. Download `ZooT-PC-v0.11.zip` from [Releases](https://github.com/AjncSystem/ZooT-PC/releases)
-   and extract it anywhere.
+1. Download the latest `ZooT-PC-v*.zip` from
+   [Releases](https://github.com/AjncSystem/ZooT-PC/releases) and extract it anywhere.
 2. Open `ZooT.exe` and choose your game file.
 3. Press **PLAY**. The first start prepares the shaders (a few minutes, once per driver; Esc
    skips).
+
+> **"Windows protected your PC"** (Microsoft Defender SmartScreen) can show on the first start:
+> `ZooT.exe` and `eden-cli.exe` are new and not code-signed, so Windows does not know them yet.
+> Click **More info → Run anyway**. The source is public here and the release zip is built from it.
 
 Personal touches stay on your PC: `user\zoot\capa.png` (or `.jpg`) for the game card and the
 loading screen background, `user\zoot\icon.png` for the window icon.

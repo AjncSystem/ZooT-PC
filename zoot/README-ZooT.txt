@@ -1,5 +1,5 @@
-ZooT-PC v0.11
-=============
+ZooT-PC v0.11.1
+===============
 
 Port para PC de The Legend of Zelda: Ocarina of Time (Nintendo Switch 2), feito sobre o
 Lichii (github.com/zortos293/Lichii, GPL-3.0).
@@ -14,6 +14,13 @@ Como usar
    use "Procurar arquivo...".
 3. Aperte JOGAR. Na primeira abertura (e depois de trocar o driver de video) os shaders do
    jogo sao preparados numa tela de carregamento: alguns minutos, uma vez so. Esc pula.
+
+Aviso "O Windows protegeu o computador" (tela vermelha)
+-------------------------------------------------------
+E o Microsoft Defender SmartScreen: ZooT.exe e eden-cli.exe sao novos e nao tem assinatura
+digital, entao o Windows ainda nao os conhece. Clique em "Mais informacoes" e depois em
+"Executar assim mesmo" (so na primeira vez). O codigo e publico em
+github.com/AjncSystem/ZooT-PC e o pacote e gerado a partir dele.
 
 Opcoes
 ------
