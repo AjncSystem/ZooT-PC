@@ -472,6 +472,9 @@ class Launcher(tk.Tk):
         self.status = tk.Label(bar, text='', bg=T.SIDE, fg=T.MUTED, font=(T.BODY, 10),
                                anchor='w', justify='left')
         self.status.pack(side='left', fill='x', expand=True, padx=(24, 12))
+        # A long status wraps instead of running under the buttons.
+        self.status.bind('<Configure>', lambda e: self.status.configure(
+            wraplength=max(120, e.width - 4)))
         self.content = tk.Frame(right, bg=T.NIGHT)
         self.content.pack(fill='both', expand=True)
 

@@ -379,9 +379,59 @@ def with_sword(shield):
     return out
 
 
+def z_icon():
+    """The ZooT mark: a serif capital Z in Cinzel Bold (SIL OFL, bundled with the launcher), in a
+    light-to-dark gold gradient with a thin dark edge and a soft shadow, on a transparent ground,
+    so it reads on light and dark taskbars."""
+    from PIL import ImageFont
+    font_path = os.path.join(HERE, 'launcher', 'assets', 'fonts', 'Cinzel-Bold.ttf')
+    font = ImageFont.truetype(font_path, int(S * 1.05))
+    mask = Image.new('L', (S, S), 0)
+    d = ImageDraw.Draw(mask)
+    l, t, r, b = d.textbbox((0, 0), 'Z', font=font)
+    w, h = r - l, b - t
+    scale = min(S * 0.86 / w, S * 0.90 / h)
+    if scale < 1.0:  # shrink the font so the glyph fits with a margin
+        font = ImageFont.truetype(font_path, int(S * 1.05 * scale))
+        l, t, r, b = d.textbbox((0, 0), 'Z', font=font)
+        w, h = r - l, b - t
+    d.text(((S - w) / 2 - l, (S - h) / 2 - t), 'Z', font=font, fill=255)
+
+    gold = Image.new('RGBA', (S, S))
+    gd = ImageDraw.Draw(gold)
+    top, bottom = (255, 236, 160), (150, 104, 22)
+    for y in range(S):
+        k = y / (S - 1)
+        mid = 0.45
+        if k < mid:
+            c = [int(top[i] + (GOLD[i] - top[i]) * (k / mid)) for i in range(3)]
+        else:
+            c = [int(GOLD[i] + (bottom[i] - GOLD[i]) * ((k - mid) / (1 - mid))) for i in range(3)]
+        gd.line([(0, y), (S, y)], fill=(*c, 255))
+
+    edge = mask.filter(ImageFilter.MaxFilter(17))
+    shadow = Image.new('RGBA', (S, S), (0, 0, 0, 0))
+    shadow.paste(Image.new('RGBA', (S, S), (0, 0, 0, 150)), (12, 18), edge)
+    shadow = shadow.filter(ImageFilter.GaussianBlur(16))
+    out = Image.alpha_composite(Image.new('RGBA', (S, S), (0, 0, 0, 0)), shadow)
+    out.paste(Image.new('RGBA', (S, S), (70, 46, 8, 255)), (0, 0), edge)  # dark edge
+    out.paste(gold, (0, 0), mask)
+    # A thin highlight on the upper edges.
+    hl = Image.new('L', (S, S), 0)
+    hl.paste(mask, (0, 0))
+    inner = mask.filter(ImageFilter.MinFilter(9))
+    hl = Image.composite(Image.new('L', (S, S), 0), hl, inner.point(lambda v: 255 if v else 0))
+    hl = hl.filter(ImageFilter.GaussianBlur(2)).point(lambda v: int(v * 0.55))
+    glow = Image.new('RGBA', (S, S), (255, 250, 220, 255))
+    top_half = Image.linear_gradient('L').resize((S, S)).point(lambda v: 255 - v)
+    out.paste(glow, (0, 0), Image.composite(hl, Image.new('L', (S, S), 0), top_half))
+    return out
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
-    big = with_sword(draw())
+    # The ZooT mark (a gold serif Z) replaced the shield with eagle and sword.
+    big = z_icon() if '--shield' not in __import__('sys').argv else with_sword(draw())
     big.resize((128, 128), Image.LANCZOS).save(os.path.join(OUT, "zoot-128.png"))
     big.resize((512, 512), Image.LANCZOS).save(os.path.join(OUT, "zoot-preview.png"))
     big.resize((256, 256), Image.LANCZOS).save(
