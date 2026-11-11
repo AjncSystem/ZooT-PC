@@ -33,7 +33,7 @@ import zoot_update as U  # noqa: E402
 from zoot_i18n import _  # noqa: E402
 
 APP = 'ZooT-PC'
-VERSION = '0.12'
+VERSION = '0.12.1'
 TITLE_ID = '0400486024DEC000'
 GAME_EXTS = ('.nup', '.nx', '.nsp', '.xci')
 

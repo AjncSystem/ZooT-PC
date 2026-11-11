@@ -3,7 +3,7 @@
 # Nothing from the game or from the player's own folder goes in: no game files, keys, saves,
 # shader caches or the player's cover or icon.
 # Usage: powershell -File zoot\package.ps1 [-Version 0.10]
-param([string]$Version = '0.12')
+param([string]$Version = '0.12.1')
 $ErrorActionPreference = 'Stop'
 
 $src = Split-Path -Parent $PSScriptRoot          # ...\ZooT-PC\src

@@ -85,20 +85,33 @@ def prepare(zip_path, work):
 
 
 def apply_and_restart(source, base, work, pid):
-    """Writes and starts the script that swaps the files once this launcher (pid) exits."""
+    """Writes and starts the script that swaps the files once this launcher (pid) exits.
+
+    The script runs in one hidden console shared by everything it starts (CREATE_NO_WINDOW,
+    not DETACHED_PROCESS): a detached cmd made every tasklist/find open a console of its own,
+    and with Windows Terminal as the default terminal 0.11 stopped in an empty "find" window.
+    Waiting is Wait-Process with a time limit, so the update never waits forever."""
     script = Path(work) / 'apply.cmd'
-    script.write_text(
+    log = Path(work) / 'apply.log'
+    # Only cmd built-ins, PowerShell, taskkill and robocopy: no ping/find/timeout (ping could
+    # hang, timeout fails without a keyboard). Wait-Process has a time limit.
+    wait = (f'Wait-Process -Id {pid} -Timeout 60 -ErrorAction SilentlyContinue; '
+            f'Stop-Process -Id {pid} -Force -ErrorAction SilentlyContinue; '
+            'Start-Sleep -Milliseconds 1500')
+    text = (
         '@echo off\r\n'
-        ':wait\r\n'
-        f'tasklist /FI "PID eq {pid}" 2>nul | find "{pid}" >nul && '
-        '(ping -n 2 127.0.0.1 >nul & goto wait)\r\n'
+        'chcp 65001 >nul\r\n'  # the paths below are UTF-8 (folders like "Área de Trabalho")
+        f'echo waiting for {pid} > "{log}"\r\n'
+        f'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "{wait}" '
+        '>nul 2>&1\r\n'
         # Everything but the user folder; robocopy returns < 8 on success.
-        f'robocopy "{source}" "{base}" /E /XD "{Path(source) / "user"}" /R:5 /W:1 '
-        '/NFL /NDL /NJH /NJS /NP >nul\r\n'
-        f'start "" "{Path(base) / "ZooT.exe"}"\r\n',
-        encoding='utf-8')
-    subprocess.Popen(['cmd', '/c', str(script)], cwd=str(base),
-                     creationflags=NO_WINDOW | 0x00000008,  # DETACHED_PROCESS
+        f'robocopy "{source}" "{base}" /E /XD "{Path(source) / "user"}" /R:10 /W:1 '
+        f'/NFL /NDL /NJH /NJS /NP >> "{log}" 2>&1\r\n'
+        f'echo robocopy %ERRORLEVEL% >> "{log}"\r\n'
+        f'start "" "{Path(base) / "ZooT.exe"}"\r\n')
+    script.write_bytes(text.encode('utf-8'))  # bytes: \r\n stays \r\n
+    subprocess.Popen(['cmd', '/d', '/c', str(script)], cwd=str(base),
+                     creationflags=NO_WINDOW | 0x00000200,  # CREATE_NEW_PROCESS_GROUP
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, close_fds=True)
 
