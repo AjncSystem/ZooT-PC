@@ -1,5 +1,5 @@
-ZooT-PC v0.11.1
-===============
+ZooT-PC v0.12
+=============
 
 Port para PC de The Legend of Zelda: Ocarina of Time (Nintendo Switch 2), feito sobre o
 Lichii (github.com/zortos293/Lichii, GPL-3.0).

@@ -23,8 +23,8 @@ graphics card and RAM).
 |---|---|
 | ![Loading screen](docs/zoot/screenshots/loading-screen.png) | ![F1 menu](docs/zoot/screenshots/menu-f1.png) |
 
-*Shown with the default ZooT card. Your own cover (`user\zoot\capa.png`) replaces the shield on
-the card and behind the loading screen, on your PC only.*
+*Shown with the default ZooT card. Click the card (or *Game → Choose cover…*) to pick a picture
+from your PC: it replaces the Z on the card and goes behind the loading screen, on your PC only.*
 
 ## What you get
 

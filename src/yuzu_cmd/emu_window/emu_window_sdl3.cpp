@@ -36,7 +36,7 @@
 // ZOOT_PORT_VERSION (set by the launcher) overrides the built-in version.
 std::string ZootBaseTitle() {
     const char* const port = std::getenv("ZOOT_PORT_VERSION");
-    return fmt::format("ZooT v{}", port && *port ? port : "0.11.1");
+    return fmt::format("ZooT v{}", port && *port ? port : "0.12");
 }
 
 static std::string ZootWindowTitle(Core::System& system, double fps) {
