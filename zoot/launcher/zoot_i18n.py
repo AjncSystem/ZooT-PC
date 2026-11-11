@@ -217,6 +217,14 @@ T = {
               '들어 있습니다(개인 정보 없음).',
         'ru': 'Отчёт сохранён в\n{path}\n\nПриложите этот файл к issue на GitHub. В нём журналы '
               'последних сессий и сводка о ПК, без личных данных.'},
+    'Trocar capa': {'en': 'Change cover', 'es': 'Cambiar portada', 'fr': 'Changer la jaquette',
+                    'ja': 'カバーを変更', 'ko': '커버 변경', 'ru': 'Сменить обложку'},
+    'Clique para escolher uma capa do seu PC': {
+        'en': 'Click to choose a cover from your PC',
+        'es': 'Haz clic para elegir una portada de tu PC',
+        'fr': 'Cliquez pour choisir une jaquette sur votre PC',
+        'ja': 'クリックして PC からカバーを選択', 'ko': '클릭해서 PC에서 커버 선택',
+        'ru': 'Нажмите, чтобы выбрать обложку с ПК'},
     'Capa do jogo': {'en': 'Game cover', 'es': 'Portada del juego', 'fr': 'Jaquette du jeu',
                      'ja': 'ゲームのカバー', 'ko': '게임 커버', 'ru': 'Обложка игры'},
     'Uma imagem sua para o cartão do jogo e a tela de carregamento.': {

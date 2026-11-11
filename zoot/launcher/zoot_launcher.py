@@ -617,6 +617,9 @@ class Launcher(tk.Tk):
         self.hero = tk.Canvas(left, bg=T.NIGHT, highlightthickness=0)
         self.hero.pack(side='top', fill='both', expand=True)
         self.hero.bind('<Configure>', lambda e: self.draw_hero())
+        # The player's own cover: a click on the card picks a picture from their PC.
+        self.hero.configure(cursor='hand2')
+        self.hero.bind('<Button-1>', lambda e: self.choose_cover())
 
         tk.Label(side, text=_('Ajustes rápidos').upper(), font=(T.HEAD_BOLD, 12), fg=T.GOLD,
                  bg=T.PANEL).pack(anchor='w', padx=18, pady=(16, 6))
@@ -700,6 +703,18 @@ class Launcher(tk.Tk):
                       fill=T.GOLD, width=w - 60)
         c.create_text(30, h - 28, text=Path(self.settings['game']).name, anchor='w',
                       font=(T.BODY, 9), fill=T.MUTED)
+        # Where the cover comes from: a hint without one, a quiet "change" with one.
+        has_cover = any((ZDIR / n).exists() for n in ('capa.png', 'capa.jpg'))
+        hint = (_('Trocar capa') if has_cover
+                else _('Clique para escolher uma capa do seu PC'))
+        tx = c.create_text(w - 22, 22, text=f'🖼  {hint}', anchor='ne', font=(T.BODY, 9),
+                           fill=T.TEXT if not has_cover else T.MUTED)
+        bx = c.bbox(tx)
+        if bx:
+            pad = 7
+            bg = c.create_rectangle(bx[0] - pad, bx[1] - pad // 2, bx[2] + pad,
+                                    bx[3] + pad // 2, fill=T.NIGHT, outline=T.BORDER)
+            c.tag_lower(bg, tx)
 
     def load_title(self):
         title = export_title(self.settings['game'])
