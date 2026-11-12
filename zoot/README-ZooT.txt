@@ -35,8 +35,15 @@ Opcoes
 
 Atalhos no jogo
 ---------------
-F1 menu ZooT  -  F7 modo de FPS (60/30/ilimitado)  -  F8 geracao de quadros  -
-F10 painel de desempenho (FPS, tempo de quadro, VRAM e RAM)  -  F11 tela cheia
+F1 menu ZooT (abas com Q/E, funciona com o mouse)  -  F7 modo de FPS (60/30/ilimitado)  -
+F8 geracao de quadros  -  F10 painel de desempenho (FPS, tempo de quadro, VRAM e RAM)  -
+F11 tela cheia
+
+Controle, teclado e mouse
+-------------------------
+Funcionam juntos, sempre. WASD anda (C devagar), o mouse move a camera (clique na janela do
+jogo para prender o mouse; Esc ou F1 soltam), clique esquerdo = espada (B), clique direito =
+mirar (ZL), Espaco = acao (A). Tudo pode ser trocado em Controles no lancador.
 
 Personalizar (so no seu PC)
 ---------------------------

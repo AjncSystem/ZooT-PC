@@ -204,7 +204,8 @@ def describe(text, tr=lambda s: s):
     if not engine:
         return '—'
     if engine == 'keyboard':
-        return f"{tr('Tecla')} {key_name(p.get('code'))}"
+        name = key_name(p.get('code'))
+        return '—' if name == '—' else f"{tr('Tecla')} {tr(name)}"
     if engine == 'mouse':
         if 'axis_x' in p:
             return tr('Mouse (câmera)')

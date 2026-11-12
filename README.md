@@ -19,9 +19,13 @@ graphics card and RAM).
 |---|---|
 | ![Controls page](docs/zoot/screenshots/launcher-controls.png) | ![Display & FPS page](docs/zoot/screenshots/launcher-display.png) |
 
-| Shader precompile on the loading screen | In-game `F1` menu |
+The in-game `F1` menu (tabs, mouse or keyboard, help for each option):
+
+![F1 menu](docs/zoot/screenshots/menu-f1.png)
+
+| Shader precompile on the loading screen | `F10` performance panel |
 |---|---|
-| ![Loading screen](docs/zoot/screenshots/loading-screen.png) | ![F1 menu](docs/zoot/screenshots/menu-f1.png) |
+| ![Loading screen](docs/zoot/screenshots/loading-screen.png) | ![F10 panel](docs/zoot/screenshots/perf-f10.png) |
 
 *Shown with the default ZooT card. Click the card (or *Game → Choose cover…*) to pick a picture
 from your PC: it replaces the Z on the card and goes behind the loading screen, on your PC only.*
@@ -30,7 +34,8 @@ from your PC: it replaces the Z on the card and goes behind the loading screen, 
 
 - **ZooT launcher** (`ZooT.exe`): finds your game, quick settings beside the game card, ready
   check (game, core, shaders, graphics card and RAM, in red when below the minimum), Display &
-  FPS, **Controls** (keyboard or controller, automatic mapping, change any button), language,
+  FPS, **Controls** (controller and keyboard/mouse together, automatic mapping, change any
+  button on either), language,
   saves with zip backups, help and the game log. Seven languages: Português, English, Español,
   Français, 日本語, 한국어, Русский.
 - **Updates itself**: checks the GitHub releases once a day (or on *Check for updates*),
@@ -42,9 +47,14 @@ from your PC: it replaces the Z on the card and goes behind the loading screen, 
 - **Less shader stutter**: the game's shaders are extracted from your own copy and precompiled
   once on a loading screen (Lichii's shader precache), with Vulkan pipeline libraries from Lichii
   [PR #741](https://github.com/zortos293/Lichii/pull/741) so new pipelines only cost a link.
+- **Keyboard and mouse, always on** beside the controller (as in the SotC-PC port): WASD
+  walks, the mouse turns the camera (click the game window to hold the mouse, Esc lets it go),
+  left click = sword (B), right click = target (ZL), Space = action (A). Every key and mouse
+  button can be changed in *Controls*.
 - **In-game shortcuts**
-  - `F1` ZooT menu: FPS mode, fullscreen, scaling filter, FSR sharpening, anti-aliasing, aspect
-    ratio, VSync, console mode and volume, applied at once; resolution for the next start.
+  - `F1` ZooT menu over the game: Display, Performance, Audio and Controls tabs (Q/E), each
+    option with its help; keyboard or mouse (click tabs, options and values, wheel to move).
+    Most options apply at once; resolution and upscaler on the next start.
   - `F7` FPS mode: 60 → 30 → unlimited (Ocarina's built-in Dynamic FPS keeps the game at speed).
   - `F8` frame generation on / off (built-in optical flow, one generated frame per game frame).
   - `F10` performance panel: FPS (game + generated), frame time, the game's VRAM and RAM, and a
