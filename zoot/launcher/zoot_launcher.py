@@ -33,7 +33,7 @@ import zoot_update as U  # noqa: E402
 from zoot_i18n import _  # noqa: E402
 
 APP = 'ZooT-PC'
-VERSION = '0.12.1'
+VERSION = '0.13'
 TITLE_ID = '0400486024DEC000'
 GAME_EXTS = ('.nup', '.nx', '.nsp', '.xci')
 
@@ -981,7 +981,7 @@ class Launcher(tk.Tk):
                 if code is None:
                     return
                 if code in C.RESERVED:
-                    hint.config(text=_('F1, F7 e F11 são atalhos do ZooT.'), fg=T.RED)
+                    hint.config(text=_('F1, F7, F8, F10 e F11 são atalhos do ZooT.'), fg=T.RED)
                     return
                 if not stick:
                     self.save_bindings({key: C.key_param(code)})
@@ -1115,6 +1115,8 @@ class Launcher(tk.Tk):
         box = self.card(page, _('Atalhos no jogo'))
         for key, text in (('F1', _('Menu ZooT: vídeo, FPS, tela, volume e resolução na hora')),
                           ('F7', _('Modo de FPS: 60 → 30 → ilimitado')),
+                          ('F8', _('Geração de quadros: liga / desliga')),
+                          ('F10', _('Painel de desempenho: FPS, tempo de quadro, VRAM e RAM')),
                           ('F11', _('Tela cheia / janela'))):
             row = tk.Frame(box, bg=T.PANEL)
             row.pack(fill='x', padx=18, pady=2)

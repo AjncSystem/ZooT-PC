@@ -36,7 +36,7 @@
 // ZOOT_PORT_VERSION (set by the launcher) overrides the built-in version.
 std::string ZootBaseTitle() {
     const char* const port = std::getenv("ZOOT_PORT_VERSION");
-    return fmt::format("ZooT v{}", port && *port ? port : "0.12.1");
+    return fmt::format("ZooT v{}", port && *port ? port : "0.13");
 }
 
 static std::string ZootWindowTitle(Core::System& system, double fps) {
@@ -76,9 +76,15 @@ EmuWindow_SDL3::EmuWindow_SDL3(InputCommon::InputSubsystem* input_subsystem_, Co
         LOG_CRITICAL(Frontend, "Failed to initialize SDL3: {}, Exiting...", SDL_GetError());
         exit(1);
     }
-    titlebar_timer = SDL_AddTimer(2000, [](void *userdata, SDL_TimerID, Uint32) -> Uint32 {
+    // Every half second: the F10 panel's numbers; the title every fourth time (2 s).
+    titlebar_timer = SDL_AddTimer(500, [](void *userdata, SDL_TimerID, Uint32) -> Uint32 {
         auto* this_ = (EmuWindow_SDL3*)userdata;
         auto const results = this_->system.GetAndResetPerfStats();
+        this_->zoot_fps.store(results.average_game_fps);
+        this_->zoot_frametime_ms.store(results.frametime * 1000.0);
+        if (this_->zoot_title_ticks++ % 4 != 0) {
+            return 500;
+        }
         auto* const title = new std::string(ZootWindowTitle(this_->system, results.average_game_fps));
         // Timers run on their own thread and AppKit throws when a title is set off the main
         // thread: ApplyPendingTitle sets it from the main loop.
@@ -88,7 +94,7 @@ EmuWindow_SDL3::EmuWindow_SDL3(InputCommon::InputSubsystem* input_subsystem_, Co
             LOG_INFO(Frontend, "FPS: {:.1f} speed: {:.0f}% frametime: {:.2f} ms", results.average_game_fps,
                      results.emulation_speed * 100.0, results.frametime * 1000.0);
         }
-        return 2000;
+        return 500;
     }, this);
     mouse_timer = SDL_AddTimer(100, [](void *userdata, SDL_TimerID, Uint32) -> Uint32 {
         auto* this_ = (EmuWindow_SDL3*)userdata;
@@ -194,9 +200,9 @@ void EmuWindow_SDL3::OnKeyEvent(int key, u8 state) {
     }
     // ZooT-PC hotkeys and the F1 menu see the key first.
     if (!zoot_overlay && render_window) {
-        zoot_overlay = std::make_unique<ZooT::Overlay>(system, render_window, [this] {
-            OnResize();
-        });
+        zoot_overlay = std::make_unique<ZooT::Overlay>(
+            system, render_window, [this] { OnResize(); },
+            [this] { return std::pair{zoot_fps.load(), zoot_frametime_ms.load()}; });
     }
     if (zoot_overlay && zoot_overlay->HandleKey(key, state != 0)) {
         return;

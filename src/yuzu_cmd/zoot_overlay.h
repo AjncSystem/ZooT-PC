@@ -4,6 +4,9 @@
 //       sharpening, anti-aliasing, aspect ratio, VSync, console mode, volume) and the resolution
 //       for the next start. Arrows choose and change, F1 or Esc closes.
 //   F7  FPS mode: 60 -> 30 -> unlimited -> 60.
+//   F8  frame generation (Lichii's built-in optical flow, 2x) on and off.
+//   F10 performance panel in the top-left corner: FPS (game frames plus generated ones), frame
+//       time, the game's video memory and RAM, and a frame time graph of the last 30 s.
 //   F11 fullscreen.
 // The menu and the short notices are small windows owned by the game window (opaque panels: a
 // see-through window over the game's Vulkan output is not reliable on Windows). Every change is
@@ -12,6 +15,7 @@
 
 #pragma once
 
+#include <array>
 #include <chrono>
 #include <functional>
 #include <map>
@@ -30,7 +34,9 @@ namespace ZooT {
 
 class Overlay {
 public:
-    Overlay(Core::System& system, SDL_Window* game, std::function<void()> relayout);
+    /// `stats` gives the FPS and frame time in ms of the last half second.
+    Overlay(Core::System& system, SDL_Window* game, std::function<void()> relayout,
+            std::function<std::pair<double, double>()> stats);
     ~Overlay();
 
     Overlay(const Overlay&) = delete;
@@ -64,6 +70,9 @@ private:
     void OpenMenu(bool open);
     void Notice(const std::string& text);
     void CycleFps();
+    void ToggleFrameGen();
+    void TogglePerf();
+    void DrawPerf();
     void SetFullscreen(bool on);
     void Step(int item, int direction);
     void SaveToLauncher();
@@ -75,10 +84,24 @@ private:
     void DrawMenu();
     void DrawNotice();
     void PlaceOver(SDL_Window* window, int w, int h, bool top);
+    void PlaceCorner(SDL_Window* window);
 
     Core::System& system;
     SDL_Window* game{};
     std::function<void()> relayout;
+    std::function<std::pair<double, double>()> stats;
+    Panel perf;
+    bool perf_open{};
+    std::array<float, 60> perf_ms{};  // frame times, one per half second
+    std::size_t perf_count{};
+    std::chrono::steady_clock::time_point perf_next{};
+    std::chrono::steady_clock::time_point perf_last{};
+    unsigned long long perf_generated{};  // frame generation's count at the last sample
+    double perf_generated_fps{};
+    bool perf_fg_running{};
+    double perf_vram{}, perf_vram_total{}, perf_ram{}, perf_ram_total{};  // bytes
+    bool perf_vram_ok{};
+    int perf_position{};  // 0 top left, 1 top center, 2 top right
     std::vector<Item> items;
     int selected{};
     bool menu_open{};

@@ -46,7 +46,13 @@ from your PC: it replaces the Z on the card and goes behind the loading screen, 
   - `F1` ZooT menu: FPS mode, fullscreen, scaling filter, FSR sharpening, anti-aliasing, aspect
     ratio, VSync, console mode and volume, applied at once; resolution for the next start.
   - `F7` FPS mode: 60 → 30 → unlimited (Ocarina's built-in Dynamic FPS keeps the game at speed).
+  - `F8` frame generation on / off (built-in optical flow, one generated frame per game frame).
+  - `F10` performance panel: FPS (game + generated), frame time, the game's VRAM and RAM, and a
+    frame time graph.
   - `F11` fullscreen.
+- **Upscaler**: Ocarina renders 1440p docked and upscales to 4K; *Display & FPS → Upscaler*
+  replaces its upscaler with **AMD FSR 3.1** (any GPU), **AMD FSR 4** (AMD cards) or
+  **NVIDIA DLSS** (RTX cards; NVIDIA's signed Streamline DLLs are included in `streamline\`).
 - **Portable**: everything stays next to the executables, in `user\` (config, saves, shader
   caches, logs). Nothing goes to `%AppData%` or `%TEMP%`.
 

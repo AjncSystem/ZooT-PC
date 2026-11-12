@@ -110,6 +110,10 @@ protected:
     /// Periodic changer of titlebar (independent of event loop)
     SDL_TimerID titlebar_timer;
     std::atomic<std::string*> pending_title{};
+    /// FPS and frame time (ms) of the last half second, for the F10 performance panel.
+    std::atomic<double> zoot_fps{};
+    std::atomic<double> zoot_frametime_ms{};
+    unsigned zoot_title_ticks{};
 
     // Mouse resetter once it
     SDL_TimerID mouse_timer;
@@ -129,7 +133,8 @@ protected:
     /// yuzu core instance
     Core::System& system;
 
-    /// ZooT-PC hotkeys (F1 menu, F7 FPS, F11 fullscreen), made on first use.
+    /// ZooT-PC hotkeys (F1 menu, F7 FPS, F8 frame generation, F10 performance, F11 fullscreen),
+    /// made on first use.
     std::unique_ptr<ZooT::Overlay> zoot_overlay;
 };
 

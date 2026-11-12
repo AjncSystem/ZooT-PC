@@ -53,7 +53,7 @@ VK_TO_SCANCODE[0x30] = 39
 VK_TO_SCANCODE.update({0x70 + i: 58 + i for i in range(12)})
 VK_TO_SCANCODE.update({0x61 + i: 89 + i for i in range(9)})
 # Keys the game window keeps for ZooT: F1 menu, F7 FPS, F11 fullscreen.
-RESERVED = {58, 64, 68}
+RESERVED = {58, 64, 65, 67, 68}  # F1, F7, F8, F10, F11
 
 # XInput controllers seen through SDL's joystick API.
 XBOX_BUTTONS = {0: 'A', 1: 'B', 2: 'X', 3: 'Y', 4: 'LB', 5: 'RB', 6: 'Back', 7: 'Start',

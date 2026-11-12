@@ -3,7 +3,7 @@
 # Nothing from the game or from the player's own folder goes in: no game files, keys, saves,
 # shader caches or the player's cover or icon.
 # Usage: powershell -File zoot\package.ps1 [-Version 0.10]
-param([string]$Version = '0.12.1')
+param([string]$Version = '0.13')
 $ErrorActionPreference = 'Stop'
 
 $src = Split-Path -Parent $PSScriptRoot          # ...\ZooT-PC\src
@@ -48,6 +48,17 @@ if (Test-Path (Join-Path $src 'LICENSES')) {
     Copy-Item -Recurse (Join-Path $src 'LICENSES') "$out\licenses\third-party"
 }
 Copy-Item (Join-Path $src 'zoot\README-ZooT.txt') $out
+# NVIDIA DLSS: the signed Streamline runtime and DLSS from NVIDIA's Streamline SDK release
+# (github.com/NVIDIA-RTX/Streamline, redistributable with its licences), in streamline\, where
+# eden-cli looks for it. Without it the launcher offers no DLSS (FSR 3.1 is built in).
+$sl = Join-Path $root 'deps\streamline'
+if (Test-Path (Join-Path $sl 'sl.interposer.dll')) {
+    New-Item -ItemType Directory -Force "$out\streamline" | Out-Null
+    Copy-Item (Join-Path $sl '*.dll') "$out\streamline\"
+    Copy-Item -Recurse (Join-Path $sl 'licenses-nvidia') "$out\licenses\nvidia-streamline"
+} else {
+    Write-Warning "No NVIDIA Streamline in ${sl}: the package has no DLSS"
+}
 
 # 3. Safety: nothing but our own files.
 $bad = Get-ChildItem $out -Recurse -File | Where-Object {

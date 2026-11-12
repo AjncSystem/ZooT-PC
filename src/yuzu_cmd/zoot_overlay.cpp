@@ -8,6 +8,9 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <dxgi1_4.h>
+#include <psapi.h>
+#pragma comment(lib, "dxgi.lib")
 
 #include <SDL3/SDL.h>
 #include <fmt/format.h>
@@ -18,6 +21,7 @@
 #include "common/settings.h"
 #include "core/core.h"
 #include "core/hle/service/am/applet_manager.h"
+#include "video_core/renderer_base.h"
 #include "yuzu_cmd/emu_window/emu_window_sdl3.h"
 #include "yuzu_cmd/yuzu_icon.h"
 #include "yuzu_cmd/zoot_font_cinzel.h"
@@ -30,6 +34,8 @@ namespace {
 
 constexpr int KeyF1 = SDL_SCANCODE_F1;
 constexpr int KeyF7 = SDL_SCANCODE_F7;
+constexpr int KeyF8 = SDL_SCANCODE_F8;
+constexpr int KeyF10 = SDL_SCANCODE_F10;
 constexpr int KeyF11 = SDL_SCANCODE_F11;
 
 constexpr unsigned White = 0xF4F6FB;
@@ -98,6 +104,11 @@ constexpr Phrase Phrases[] = {
      "Игровой"},
     {"framegen", "Geração de quadros", "Frame generation", "Generación de fotogramas",
      "Génération d’images", "フレーム生成", "프레임 생성", "Генерация кадров"},
+    {"perf_pos", "Posição do F10", "F10 panel position", "Posición del F10",
+     "Position du F10", "F10 パネルの位置", "F10 패널 위치", "Положение панели F10"},
+    {"left", "Esquerda", "Left", "Izquierda", "Gauche", "左", "왼쪽", "Слева"},
+    {"center", "Meio", "Center", "Centro", "Centre", "中央", "가운데", "По центру"},
+    {"right", "Direita", "Right", "Derecha", "Droite", "右", "오른쪽", "Справа"},
     {"soft", "suave", "soft", "suave", "doux", "ソフト", "부드럽게", "мягкий"},
     {"fps_notice", "FPS: {}", "FPS: {}", "FPS: {}", "FPS : {}", "FPS: {}", "FPS: {}", "FPS: {}"},
 };
@@ -190,17 +201,89 @@ const char* UpscalerKey(int v) {
     return v == UpscalerFsr31 ? "fsr31" : v == UpscalerFsr4 ? "fsr4" : v == UpscalerDlss ? "dlss" : "game";
 }
 
+/// The game's video memory use, from the graphics card with the most dedicated memory (DXGI
+/// counts every allocation this process made on it, Vulkan's too) and that card's size.
+class VramProbe {
+public:
+    VramProbe() {
+        IDXGIFactory1* factory = nullptr;
+        if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory1), reinterpret_cast<void**>(&factory)))) {
+            return;
+        }
+        IDXGIAdapter1* a = nullptr;
+        for (UINT i = 0; factory->EnumAdapters1(i, &a) != DXGI_ERROR_NOT_FOUND; ++i) {
+            DXGI_ADAPTER_DESC1 d{};
+            if (SUCCEEDED(a->GetDesc1(&d)) && !(d.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) &&
+                double(d.DedicatedVideoMemory) > total) {
+                IDXGIAdapter3* a3 = nullptr;
+                if (SUCCEEDED(a->QueryInterface(__uuidof(IDXGIAdapter3),
+                                                reinterpret_cast<void**>(&a3)))) {
+                    if (adapter) {
+                        adapter->Release();
+                    }
+                    adapter = a3;
+                    total = double(d.DedicatedVideoMemory);
+                }
+            }
+            a->Release();
+        }
+        factory->Release();
+    }
+    ~VramProbe() {
+        if (adapter) {
+            adapter->Release();
+        }
+    }
+    bool Query(double& used, double& size) const {
+        DXGI_QUERY_VIDEO_MEMORY_INFO info{};
+        if (!adapter ||
+            FAILED(adapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info))) {
+            return false;
+        }
+        used = double(info.CurrentUsage);
+        size = total;
+        return true;
+    }
+
+private:
+    IDXGIAdapter3* adapter{};
+    double total{};
+};
+
+/// This process's RAM (working set) and the PC's installed RAM, in bytes.
+void RamUse(double& used, double& size) {
+    PROCESS_MEMORY_COUNTERS pmc{};
+    pmc.cb = sizeof(pmc);
+    used = K32GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc)) ? double(pmc.WorkingSetSize)
+                                                                            : 0.0;
+    MEMORYSTATUSEX ms{};
+    ms.dwLength = sizeof(ms);
+    size = GlobalMemoryStatusEx(&ms) ? double(ms.ullTotalPhys) : 0.0;
+}
+
 } // Anonymous namespace
 
-Overlay::Overlay(Core::System& system_, SDL_Window* game_, std::function<void()> relayout_)
-    : system{system_}, game{game_}, relayout{std::move(relayout_)} {
+Overlay::Overlay(Core::System& system_, SDL_Window* game_, std::function<void()> relayout_,
+                 std::function<std::pair<double, double>()> stats_)
+    : system{system_}, game{game_}, relayout{std::move(relayout_)}, stats{std::move(stats_)} {
     RegisterFonts();
+    // Where the F10 panel goes (top left, top center or top right), as last chosen in F1.
+    const auto path = Common::FS::GetEdenPath(Common::FS::EdenPath::EdenDir) / "zoot" /
+                      "launcher.json";
+    if (std::ifstream in{path}) {
+        const auto data = nlohmann::json::parse(in, nullptr, false);
+        if (data.is_object() && data.contains("perf_position") &&
+            data["perf_position"].is_number_integer()) {
+            perf_position = std::clamp(data["perf_position"].get<int>(), 0, 2);
+        }
+    }
     BuildItems();
 }
 
 Overlay::~Overlay() {
     FreePanel(menu);
     FreePanel(notice);
+    FreePanel(perf);
 }
 
 void Overlay::BuildItems() {
@@ -299,14 +382,22 @@ void Overlay::BuildItems() {
     }
     items.push_back({Say("upscaler"), upscalers, [] { return int(CurrentUpscaler()); },
                      [](int v) { ApplyUpscaler(v); }, true});
+    items.push_back({Say("perf_pos"),
+                     {{Say("left"), 0}, {Say("center"), 1}, {Say("right"), 2}},
+                     [this] { return perf_position; },
+                     [this](int v) {
+                         perf_position = v;
+                         if (perf_open && perf.window) {
+                             PlaceCorner(perf.window);
+                         }
+                     }});
     items.push_back({Say("framegen"),
                      {{Say("off"), 0}, {"2x", 1}},
                      [] { return values.frame_gen.GetValue() ? 1 : 0; },
                      [](int v) {
                          values.frame_gen.SetValue(v != 0);
                          values.frame_gen_type.SetValue(FrameGenType::Fsr3);
-                     },
-                     true});
+                     }});
 }
 
 bool Overlay::HandleKey(int scancode, bool down) {
@@ -319,6 +410,18 @@ bool Overlay::HandleKey(int scancode, bool down) {
     if (scancode == KeyF7) {
         if (down) {
             CycleFps();
+        }
+        return true;
+    }
+    if (scancode == KeyF8) {
+        if (down) {
+            ToggleFrameGen();
+        }
+        return true;
+    }
+    if (scancode == KeyF10) {
+        if (down) {
+            TogglePerf();
         }
         return true;
     }
@@ -381,6 +484,39 @@ void Overlay::CycleFps() {
     dirty = true;
 }
 
+void Overlay::ToggleFrameGen() {
+    using Settings::values;
+    const bool on = !values.frame_gen.GetValue();
+    values.frame_gen_type.SetValue(Settings::FrameGenType::Fsr3);
+    values.frame_gen.SetValue(on);
+    LOG_INFO(Frontend, "ZooT: frame generation {}", on ? "2x" : "off");
+    SaveToLauncher();
+    Notice(Say("framegen") + ": " + (on ? std::string("2x") : Say("off")));
+    dirty = true;
+}
+
+void Overlay::TogglePerf() {
+    perf_open = !perf_open;
+    LOG_INFO(Frontend, "ZooT: performance panel {}", perf_open ? "on" : "off");
+    if (perf_open) {
+        if (!perf.window) {
+            if (!MakePanel(perf, 250, 124)) {
+                perf_open = false;
+                return;
+            }
+            // See-through: the whole panel at 55% (a layered window, which Windows composites
+            // reliably over the game's Vulkan output, unlike per-pixel transparency).
+            SDL_SetWindowOpacity(perf.window, 0.55f);
+        }
+        perf_count = 0;
+        perf_next = {};
+        SDL_ShowWindow(perf.window);
+        SDL_RaiseWindow(game);
+    } else if (perf.window) {
+        SDL_HideWindow(perf.window);
+    }
+}
+
 void Overlay::SetFullscreen(bool on) {
     SDL_SetWindowFullscreen(game, on);
     SaveToLauncher();
@@ -402,6 +538,7 @@ void Overlay::SaveToLauncher() {
             }
         }
     }
+    data["perf_position"] = perf_position;
     data["resolution"] = int(values.resolution_setup.GetValue());
     data["filter"] = int(values.scaling_filter.GetValue());
     data["sharpness"] = values.fsr_sharpening_slider.GetValue();
@@ -600,9 +737,56 @@ void Overlay::PlaceOver(SDL_Window* window, int w, int h, bool top) {
     }
 }
 
+void Overlay::PlaceCorner(SDL_Window* window) {
+    int gx = 0, gy = 0, gw = 0, gh = 0, w = 0, h = 0, cx = 0, cy = 0;
+    SDL_GetWindowPosition(game, &gx, &gy);
+    SDL_GetWindowSize(game, &gw, &gh);
+    SDL_GetWindowSize(window, &w, &h);
+    const int margin = int(12 * DisplayScale(game));
+    // Top left, top center or top right of the game window (F1 → F10 panel position).
+    const int x = perf_position == 1   ? gx + (gw - w) / 2
+                  : perf_position == 2 ? gx + gw - w - margin
+                                       : gx + margin;
+    const int y = gy + margin;
+    SDL_GetWindowPosition(window, &cx, &cy);
+    if (cx != x || cy != y) {
+        SDL_SetWindowPosition(window, x, y);
+    }
+}
+
 void Overlay::Tick() {
     const auto now = std::chrono::steady_clock::now();
     const bool minimized = (SDL_GetWindowFlags(game) & (SDL_WINDOW_MINIMIZED | SDL_WINDOW_HIDDEN));
+    if (perf_open && perf.window) {
+        const bool shown = !(SDL_GetWindowFlags(perf.window) & SDL_WINDOW_HIDDEN);
+        if (minimized == shown) {
+            minimized ? SDL_HideWindow(perf.window) : SDL_ShowWindow(perf.window);
+        }
+        if (!minimized && now >= perf_next) {
+            perf_next = now + std::chrono::milliseconds{500};
+            perf_ms[perf_count % perf_ms.size()] = float(stats ? stats().second : 0.0);
+            ++perf_count;
+            // Frames made by frame generation are not game frames: counted from the renderer.
+            perf_generated_fps = 0.0;
+            perf_fg_running = false;
+            if (system.IsPoweredOn()) {
+                const auto fg = system.Renderer().GetFrameGenStatus();
+                perf_fg_running = fg.state == VideoCore::FrameGenState::Running;
+                const double dt = std::chrono::duration<double>(now - perf_last).count();
+                if (perf_count > 1 && dt > 0.1 && fg.generated_frames >= perf_generated) {
+                    perf_generated_fps = double(fg.generated_frames - perf_generated) / dt;
+                }
+                perf_generated = fg.generated_frames;
+            }
+            perf_last = now;
+            static const VramProbe vram;
+            perf_vram_ok = vram.Query(perf_vram, perf_vram_total);
+            RamUse(perf_ram, perf_ram_total);
+            DrawPerf();
+        } else if (!minimized) {
+            PlaceCorner(perf.window);
+        }
+    }
     if (notice.window) {
         const bool show = !notice_text.empty() && now < notice_until && !minimized;
         const bool shown = !(SDL_GetWindowFlags(notice.window) & SDL_WINDOW_HIDDEN);
@@ -624,6 +808,63 @@ void Overlay::Tick() {
         }
     }
     dirty = false;
+}
+
+void Overlay::DrawPerf() {
+    PlaceCorner(perf.window);
+    int pw = 0, ph = 0;
+    SDL_GetCurrentRenderOutputSize(perf.renderer, &pw, &ph);
+    const float s = float(pw) / 250.0f;
+    SDL_Renderer* r = perf.renderer;
+    const float W = float(pw), H = float(ph);
+    Fill(r, 0, 0, W, H, 0x0B1222);
+    Fill(r, 0, 0, 3 * s, H, Gold);
+    const auto [game_fps, ms] = stats ? stats() : std::pair{0.0, 0.0};
+    // With frame generation the screen shows the game's frames plus the generated ones.
+    const double fps = game_fps + perf_generated_fps;
+    const Text& big = GetText(perf, fmt::format("{:.0f} FPS", fps), int(24 * s), true, false);
+    Put(perf, big, 14 * s, 8 * s, fps >= 55.0 ? Gold : fps >= 30.0 ? 0xF0C060u : 0xEF5350u);
+    std::string info = fmt::format("{:.1f} ms", ms);
+    if (perf_fg_running) {
+        info = fmt::format("{:.0f} + FG {:.0f}", game_fps, perf_generated_fps);
+    } else if (Settings::values.frame_gen.GetValue()) {
+        info += "  \u00b7  FG\u2026";
+    }
+    const Text& detail = GetText(perf, info, int(13 * s), false, false);
+    Put(perf, detail, 16 * s + big.w, 8 * s + big.h - detail.h - 3 * s, Muted);  // "small" is a macro in rpcndr.h
+    // Memory: red when the game holds more than 90% of the card or of the PC.
+    constexpr double GB = 1024.0 * 1024.0 * 1024.0;
+    float mx = 16 * s;
+    const float my = 44 * s;
+    if (perf_vram_ok && perf_vram_total > 0) {
+        const Text& v = GetText(perf, fmt::format("VRAM {:.1f} / {:.0f} GB", perf_vram / GB,
+                                                  perf_vram_total / GB),
+                                int(12 * s), false, false);
+        Put(perf, v, mx, my, perf_vram > 0.9 * perf_vram_total ? 0xEF5350u : 0xC3CCDAu);
+        mx += v.w + 12 * s;
+    }
+    if (perf_ram_total > 0) {
+        const Text& m = GetText(perf, fmt::format("RAM {:.1f} / {:.0f} GB", perf_ram / GB,
+                                                  perf_ram_total / GB),
+                                int(12 * s), false, false);
+        Put(perf, m, mx, my, perf_ram > 0.9 * perf_ram_total ? 0xEF5350u : 0xC3CCDAu);
+    }
+    // Frame time graph: the last 60 half-second samples, 16.7 ms (60 FPS) as the guide line.
+    const float gx = 14 * s, gy = 70 * s, gw = W - 28 * s, gh = H - 80 * s;
+    Fill(r, gx, gy, gw, gh, 0x111C33);
+    const float scale_ms = 50.0f;
+    const float guide = gy + gh - gh * (16.7f / scale_ms);
+    Fill(r, gx, guide, gw, 1 * s, 0x2A3A5C);
+    const std::size_t n = std::min(perf_count, perf_ms.size());
+    const float bar = gw / float(perf_ms.size());
+    for (std::size_t i = 0; i < n; ++i) {
+        const float v = perf_ms[(perf_count - n + i) % perf_ms.size()];
+        const float bh = std::clamp(v / scale_ms, 0.02f, 1.0f) * gh;
+        const float x = gx + gw - float(n - i) * bar;
+        Fill(r, x, gy + gh - bh, std::max(1.0f, bar - 1 * s), bh,
+             v <= 17.5f ? Gold : v <= 34.0f ? 0xF0C060u : 0xEF5350u, 0.9f);
+    }
+    SDL_RenderPresent(r);
 }
 
 void Overlay::DrawNotice() {
