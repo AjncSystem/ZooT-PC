@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 
+union SDL_Event;
 struct SDL_Renderer;
 struct SDL_Texture;
 struct SDL_Window;
@@ -48,6 +49,14 @@ public:
 
     /// Called by the main loop: redraws, follows the game window, hides an old notice.
     void Tick();
+
+    /// A mouse event; true when it was over the open menu (clicks, wheel, pointing), which
+    /// the game must not see.
+    bool HandleMouse(const SDL_Event& event);
+
+    bool MenuOpen() const {
+        return menu_open;
+    }
 
 private:
     struct Text {
@@ -110,6 +119,16 @@ private:
     int tab{};       ///< current tab
     std::array<int, 4> tab_selected{};
     std::vector<int> TabRows() const;
+    /// Where the menu's tabs, rows and values were drawn (render pixels), for the mouse.
+    enum class HitKind { Tab, Row, Less, More, Choice };
+    struct Hit {
+        float x, y, w, h;
+        HitKind kind;
+        int a;  ///< tab, or row within the tab
+        int b;  ///< choice index (Choice)
+    };
+    std::vector<Hit> hits;
+    void SetChoice(int item, int choice);
     bool menu_open{};
     Panel menu;
     Panel notice;

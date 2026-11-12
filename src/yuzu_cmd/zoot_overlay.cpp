@@ -640,6 +640,114 @@ void Overlay::Step(int index, int direction) {
     dirty = true;
 }
 
+void Overlay::SetChoice(int index, int choice) {
+    Item& item = items[std::size_t(index)];
+    if (choice < 0 || choice >= int(item.choices.size())) {
+        return;
+    }
+    item.set(item.choices[std::size_t(choice)].second);
+    LOG_INFO(Frontend, "ZooT menu: {} -> {}", item.label, item.choices[std::size_t(choice)].first);
+    SaveToLauncher();
+    dirty = true;
+}
+
+bool Overlay::HandleMouse(const SDL_Event& event) {
+    if (!menu_open || !menu.window) {
+        return false;
+    }
+    const SDL_WindowID id = SDL_GetWindowID(menu.window);
+    SDL_WindowID event_window = 0;
+    float mx = 0, my = 0;
+    switch (event.type) {
+    case SDL_EVENT_MOUSE_MOTION:
+        event_window = event.motion.windowID;
+        mx = event.motion.x;
+        my = event.motion.y;
+        break;
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+        event_window = event.button.windowID;
+        mx = event.button.x;
+        my = event.button.y;
+        break;
+    case SDL_EVENT_MOUSE_WHEEL:
+        event_window = event.wheel.windowID;
+        break;
+    default:
+        return false;
+    }
+    if (event_window != id) {
+        // While the menu is open the game gets no mouse input either.
+        return true;
+    }
+    // Window coordinates -> the render pixels the hits were recorded in.
+    int ww = 0, wh = 0, pw = 0, ph = 0;
+    SDL_GetWindowSize(menu.window, &ww, &wh);
+    SDL_GetCurrentRenderOutputSize(menu.renderer, &pw, &ph);
+    if (ww > 0 && wh > 0) {
+        mx *= float(pw) / float(ww);
+        my *= float(ph) / float(wh);
+    }
+    const auto rows = TabRows();
+    if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+        // The wheel moves the choice, never a value.
+        const int n = std::max<int>(1, int(rows.size()));
+        selected = (selected + (event.wheel.y > 0 ? n - 1 : 1)) % n;
+        dirty = true;
+        return true;
+    }
+    if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == SDL_BUTTON_RIGHT) {
+        OpenMenu(false);
+        return true;
+    }
+    const Hit* hit = nullptr;
+    for (const Hit& h : hits) {
+        if (mx >= h.x && mx < h.x + h.w && my >= h.y && my < h.y + h.h) {
+            hit = &h;
+            break;
+        }
+    }
+    if (hit == nullptr) {
+        return true;
+    }
+    if (event.type == SDL_EVENT_MOUSE_MOTION) {
+        // Pointing at a row chooses it (its help shows), as the arrows do.
+        if (hit->kind != HitKind::Tab && hit->a != selected) {
+            selected = hit->a;
+            dirty = true;
+        }
+        return true;
+    }
+    if (event.type != SDL_EVENT_MOUSE_BUTTON_DOWN || event.button.button != SDL_BUTTON_LEFT) {
+        return true;
+    }
+    switch (hit->kind) {
+    case HitKind::Tab:
+        tab_selected[std::size_t(tab)] = selected;
+        tab = hit->a;
+        selected = tab_selected[std::size_t(tab)];
+        break;
+    case HitKind::Row:
+        selected = hit->a;
+        break;
+    case HitKind::Less:
+    case HitKind::More:
+        selected = hit->a;
+        if (hit->a < int(rows.size())) {
+            Step(rows[std::size_t(hit->a)], hit->kind == HitKind::Less ? -1 : +1);
+        }
+        break;
+    case HitKind::Choice:
+        selected = hit->a;
+        if (hit->a < int(rows.size())) {
+            SetChoice(rows[std::size_t(hit->a)], hit->b);
+        }
+        break;
+    }
+    dirty = true;
+    return true;
+}
+
 void Overlay::CycleFps() {
     const int next = CurrentFps() == Fps60 ? Fps30 : CurrentFps() == Fps30 ? FpsUnlimited : Fps60;
     ApplyFps(next);
@@ -750,6 +858,7 @@ void Overlay::OpenMenu(bool open) {
         dirty = true;
     } else if (menu.window) {
         SDL_HideWindow(menu.window);
+        SDL_RaiseWindow(game);
     }
 }
 
@@ -1089,6 +1198,7 @@ void Overlay::DrawMenu() {
 
     Fill(r, 0, 0, W, H, Night);
 
+    hits.clear();
     // Tab bar.
     const float bar_h = 50 * s;
     Fill(r, 0, 0, W, bar_h, Parchment);
@@ -1114,6 +1224,7 @@ void Overlay::DrawMenu() {
         if (on) {
             Fill(r, tx, 0, tw, bar_h - 2 * s, Brown);
         }
+        hits.push_back({tx, 0, tw, bar_h, HitKind::Tab, i, 0});
         Put(menu, t, tx + 22 * s, (bar_h - t.h) / 2, on ? GoldBright : Ink);
         tx += tw;
     }
@@ -1129,6 +1240,7 @@ void Overlay::DrawMenu() {
         const Item& item = items[std::size_t(rows[n])];
         const bool on = int(n) == selected;
         Fill(r, left, y, label_w, row_h, RowBox, 0.92f);
+        hits.push_back({left, y, label_w, row_h, HitKind::Row, int(n), 0});
         if (on) {
             Fill(r, left, y, 4 * s, row_h, GoldBox);
         }
@@ -1143,6 +1255,7 @@ void Overlay::DrawMenu() {
             for (std::size_t c = 0; c < 2; ++c) {
                 const bool lit = item.choices[c].second == now;
                 const float x = vx + half * float(c);
+                hits.push_back({x, y, half, row_h, HitKind::Choice, int(n), int(c)});
                 Fill(r, x, y, half - (c == 0 ? 2 * s : 0), row_h,
                      lit ? (on ? GoldBox : 0x5A4228) : ValueBox, 0.95f);
                 const Text& t = GetText(menu, item.choices[c].first, int(16 * s), lit, false);
@@ -1154,6 +1267,8 @@ void Overlay::DrawMenu() {
                 Fill(r, vx - 2 * s, y + row_h, value_w + 4 * s, 2 * s, GoldEdge);
             }
         } else {
+            hits.push_back({vx, y, value_w / 2, row_h, HitKind::Less, int(n), 0});
+            hits.push_back({vx + value_w / 2, y, value_w / 2, row_h, HitKind::More, int(n), 0});
             std::string value = "?";
             for (const auto& c : item.choices) {
                 if (c.second == now) {

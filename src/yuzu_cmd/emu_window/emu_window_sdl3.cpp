@@ -157,6 +157,13 @@ void EmuWindow_SDL3::OnMousePan(float xrel, float yrel) {
     }
 }
 
+void EmuWindow_SDL3::ZootMenuClosedCheck(bool was_open) {
+    if (was_open && zoot_overlay && !zoot_overlay->MenuOpen() && zoot_hold_after_menu) {
+        zoot_hold_after_menu = false;
+        ZootHoldMouse(true);
+    }
+}
+
 void EmuWindow_SDL3::ZootHoldMouse(bool hold) {
     if (!render_window || SDL_GetWindowRelativeMouseMode(render_window) == hold) {
         return;
@@ -232,8 +239,15 @@ void EmuWindow_SDL3::OnKeyEvent(int key, u8 state) {
                      state != 0 ? "" : "-", key);
         std::fflush(record);
     }
-    // Esc and F1 let the held mouse go (the menu and the desktop need the cursor).
+    // Esc and F1 let the held mouse go (the menu and the desktop need the cursor). F1 opening
+    // the menu remembers it, to hold it again for the camera when the menu closes.
+    const bool menu_was_open = zoot_overlay && zoot_overlay->MenuOpen();
     if (state != 0 && (key == SDL_SCANCODE_ESCAPE || key == SDL_SCANCODE_F1)) {
+        if (!menu_was_open) {
+            zoot_hold_after_menu =
+                key == SDL_SCANCODE_F1 && render_window &&
+                SDL_GetWindowRelativeMouseMode(render_window);
+        }
         ZootHoldMouse(false);
     }
     // ZooT-PC hotkeys and the F1 menu see the key first.
@@ -243,6 +257,7 @@ void EmuWindow_SDL3::OnKeyEvent(int key, u8 state) {
             [this] { return std::pair{zoot_fps.load(), zoot_frametime_ms.load()}; });
     }
     if (zoot_overlay && zoot_overlay->HandleKey(key, state != 0)) {
+        ZootMenuClosedCheck(menu_was_open);
         return;
     }
     if (state != 0) {
@@ -348,6 +363,21 @@ void EmuWindow_SDL3::OnEvent(SDL_Event& event) {
     case SDL_EVENT_KEY_DOWN:
     case SDL_EVENT_KEY_UP:
         return OnKeyEvent(int(event.key.scancode), event.key.down ? 1 : 0);
+    case SDL_EVENT_MOUSE_MOTION:
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+    case SDL_EVENT_MOUSE_WHEEL:
+        // The F1 menu takes the mouse while it is open.
+        if (zoot_overlay && zoot_overlay->MenuOpen()) {
+            zoot_overlay->HandleMouse(event);
+            ZootMenuClosedCheck(true);
+            return;
+        }
+        break;
+    default:
+        break;
+    }
+    switch (event.type) {
     case SDL_EVENT_MOUSE_MOTION:
         // ignore if it came from touch
         if (event.motion.which == SDL_TOUCH_MOUSEID) {

@@ -15,6 +15,7 @@
 #include "input_common/drivers/udp_client.h"
 #include "input_common/drivers/virtual_amiibo.h"
 #include "input_common/drivers/virtual_gamepad.h"
+#include "input_common/helpers/combo_input.h"
 #include "input_common/helpers/stick_from_buttons.h"
 #include "input_common/helpers/touch_from_buttons.h"
 #include "input_common/input_engine.h"
@@ -99,6 +100,8 @@ struct InputSubsystem::Impl {
                                             std::make_shared<TouchFromButton>());
         Common::Input::RegisterInputFactory("analog_from_button",
                                             std::make_shared<StickFromButton>());
+        // ZooT-PC: a controller and the keyboard/mouse on the same console input.
+        Common::Input::RegisterInputFactory("combo", std::make_shared<ComboInput>());
     }
 
     template <typename Engine>
@@ -131,6 +134,7 @@ struct InputSubsystem::Impl {
 
         Common::Input::UnregisterInputFactory("touch_from_button");
         Common::Input::UnregisterInputFactory("analog_from_button");
+        Common::Input::UnregisterInputFactory("combo");
     }
 
     [[nodiscard]] std::vector<Common::ParamPackage> GetInputDevices() const {

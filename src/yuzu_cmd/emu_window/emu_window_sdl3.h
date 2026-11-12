@@ -121,6 +121,8 @@ protected:
     std::atomic<double> zoot_frametime_ms{};
     unsigned zoot_title_ticks{};
     float zoot_pan_rest_x{}, zoot_pan_rest_y{};  // sub-pixel movement left over
+    bool zoot_hold_after_menu{};  // the mouse was held when the F1 menu opened
+    void ZootMenuClosedCheck(bool was_open);
 
     // Mouse resetter once it
     SDL_TimerID mouse_timer;

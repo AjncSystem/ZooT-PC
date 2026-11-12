@@ -152,9 +152,16 @@ void EmulatedController::ReloadColorsFromSettings() {
 }
 
 void EmulatedController::LoadDevices() {
+    // ZooT-PC: with a controller and the keyboard/mouse on one input (engine:combo, a: the
+    // controller, b: keyboard/mouse), vibration, battery, colors and the rest come from the
+    // controller half.
+    const auto controller_half = [](const Common::ParamPackage& params) {
+        return params.Get("engine", "") == "combo" ? Common::ParamPackage{params.Get("a", "")}
+                                                   : params;
+    };
     // TODO(german77): Use more buttons to detect the correct device
-    const auto& left_joycon = button_params[Settings::NativeButton::DRight];
-    const auto& right_joycon = button_params[Settings::NativeButton::A];
+    const auto left_joycon = controller_half(button_params[Settings::NativeButton::DRight]);
+    const auto right_joycon = controller_half(button_params[Settings::NativeButton::A]);
 
     // Triggers for GC controllers
     trigger_params[LeftIndex] = button_params[Settings::NativeButton::ZL];

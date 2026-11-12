@@ -141,6 +141,47 @@ def keyboard_mouse(invert_y=False):
     return out
 
 
+# ---- controller + keyboard/mouse together (engine:combo in eden-cli) ---------------------------
+BINDING_KEYS = [k for k, _ in BUTTONS] + [k for k, _ in STICKS]
+
+
+def combo(pad, kbm):
+    """One console input fed by the controller (a) and the keyboard/mouse (b) at once."""
+    if pad and kbm:
+        return f'engine:combo,a:{escape(pad)},b:{escape(kbm)}'
+    return pad or kbm or ''
+
+
+def is_kbm(text):
+    return parse(text).get('engine') in ('keyboard', 'mouse', 'analog_from_button')
+
+
+def split_layers(bindings):
+    """{'button_a': ini value} -> (controller layer, keyboard/mouse layer)."""
+    pad, kbm = {}, {}
+    for key in BINDING_KEYS:
+        value = bindings.get(key, '')
+        p = parse(value)
+        if p.get('engine') == 'combo':
+            if p.get('a'):
+                pad[key] = p['a']
+            if p.get('b'):
+                kbm[key] = p['b']
+        elif p.get('engine') and is_kbm(value):
+            kbm[key] = value
+        elif p.get('engine'):
+            pad[key] = value
+    return pad, kbm
+
+
+def kbm_layout(mouse_camera=True, invert_y=False):
+    """The keyboard and mouse layout; without the mouse camera, I J K L turn the camera."""
+    out = keyboard_mouse(invert_y)
+    if not mouse_camera:
+        out['rstick'] = stick_from_keys(12, 14, 13, 15, 0)
+    return out
+
+
 def default_keyboard():
     out = {key: key_param(DEFAULT_KEYS.get(key, 0)) for key, _ in BUTTONS}
     for key, keys in DEFAULT_STICKS.items():

@@ -96,7 +96,7 @@ DEFAULTS = {
     'fullscreen': False, 'gpl': True, 'precache': True, 'volume': 100,
     'game_language': 17, 'launcher_language': 'pt', 'fps_mode': '60', 'sharpness': 25,
     'auto_update': True, 'last_update_check': 0, 'upscaler': 'game', 'framegen': 0,
-    'mouse_camera': False, 'mouse_sens': 50, 'mouse_invert': False, 'rstick_before_mouse': '',
+    'mouse_camera': True, 'mouse_sens': 50, 'mouse_invert': False, 'rstick_before_mouse': '',
 }
 MOUSE_SENS = [(f'{v}%', v) for v in (20, 35, 50, 65, 80, 100)]
 
@@ -286,6 +286,10 @@ class Launcher(tk.Tk):
         super().__init__()
         self.report_callback_exception = self.report_error
         self.settings = load_settings()
+        if not self.settings.get('kbm_always'):
+            # 0.13: keyboard and mouse always on beside the controller, mouse camera on.
+            self.settings.update({'kbm_always': True, 'mouse_camera': True})
+            save_settings(self.settings)
         I18N.LANG = self.settings.get('launcher_language', 'pt')
         T.load_fonts(self, I18N.LANG)
         self.title(APP)
@@ -827,19 +831,20 @@ class Launcher(tk.Tk):
 
     # ---- controls -------------------------------------------------------------------------------
     def build_controls(self):
-        """Player 1: the device (keyboard or a controller eden-cli finds), automatic mapping,
-        vibration, and each console button with what it is bound to and a Change button. The
+        """Player 1, as in the SotC-PC port: the controller and the keyboard and mouse always
+        work together. Each console button has a controller binding and a keyboard/mouse one
+        (written as engine:combo for eden-cli); the Buttons card edits either layer. The
         bindings live in sdl2-config.ini ([Controls]), which the game reads when it starts."""
         page = self.page('controls', _('Controles'))
-        self.bindings = C.read_bindings(INI)
+        self.load_layers()
         self.pads = []
 
-        box = self.card(page, _('Dispositivo'))
+        box = self.card(page, _('Controle'))
         row = tk.Frame(box, bg=T.PANEL)
         row.pack(fill='x', padx=18, pady=(0, 6))
-        self.dev_var = tk.StringVar(value=_('Teclado e mouse'))
+        self.dev_var = tk.StringVar(value=_('Nenhum controle'))
         self.dev_box = ttk.Combobox(row, textvariable=self.dev_var, state='readonly', width=30,
-                                    style='Zoot.TCombobox', values=[_('Teclado e mouse')])
+                                    style='Zoot.TCombobox', values=[_('Nenhum controle')])
         self.dev_box.pack(side='left')
         T.Button(row, _('Mapear automaticamente'), self.automap).pack(side='right')
         T.Button(row, _('Procurar controles'), self.find_pads).pack(side='right', padx=8)
@@ -847,8 +852,9 @@ class Launcher(tk.Tk):
         row.pack(fill='x', padx=18, pady=(2, 10))
         self.pad_status = tk.Label(row, text='', font=(T.BODY, 9), fg=T.MUTED, bg=T.PANEL)
         self.pad_status.pack(side='left')
-        vib = self.bindings.get('vibration_enabled', 'true') != 'false'
-        strength = self.bindings.get('vibration_strength', '100')
+        raw = C.read_bindings(INI)
+        vib = raw.get('vibration_enabled', 'true') != 'false'
+        strength = raw.get('vibration_strength', '100')
         tk.Label(row, text=_('Vibração'), font=(T.BODY, 10), fg=T.TEXT, bg=T.PANEL).pack(
             side='right', padx=(10, 0))
         T.Switch(row, vib, lambda v: write_ini(
@@ -863,6 +869,16 @@ class Launcher(tk.Tk):
         self.build_keyboard_mouse(page)
 
         box = self.card(page, _('Botões'))
+        row = tk.Frame(box, bg=T.PANEL)
+        row.pack(fill='x', padx=18, pady=(0, 8))
+        tk.Label(row, text=_('Mostrar'), font=(T.BODY, 10), fg=T.TEXT, bg=T.PANEL).pack(
+            side='left')
+        layers = [_('Teclado e mouse'), _('Controle')]
+        self.layer_var = tk.StringVar(value=layers[0])
+        lbox = ttk.Combobox(row, values=layers, textvariable=self.layer_var, state='readonly',
+                            width=20, style='Zoot.TCombobox')
+        lbox.pack(side='left', padx=(10, 0))
+        lbox.bind('<<ComboboxSelected>>', lambda e: self.refresh_binding_labels())
         grid = tk.Frame(box, bg=T.PANEL)
         grid.pack(fill='x', padx=18, pady=(0, 10))
         self.bind_labels = {}
@@ -875,34 +891,70 @@ class Launcher(tk.Tk):
             grid.columnconfigure(col, weight=1)
             tk.Label(cell, text=_(name), font=(T.BODY_SEMI, 10), fg=T.GOLD, bg=T.PANEL,
                      width=6, anchor='w').pack(side='left')
-            lbl = tk.Label(cell, text=C.describe(self.bindings.get(key), _), font=(T.BODY, 9),
-                           fg=T.TEXT, bg=T.PANEL, anchor='w')
+            lbl = tk.Label(cell, text='', font=(T.BODY, 9), fg=T.TEXT, bg=T.PANEL, anchor='w')
             lbl.pack(side='left', fill='x', expand=True)
             self.bind_labels[key] = lbl
             T.Button(cell, _('Mudar'), lambda k=key, n=name, s=stick: self.change_binding(k, n, s),
                      small=True).pack(side='right')
+        self.refresh_binding_labels()
         tk.Label(page, text=_('Os controles valem na próxima abertura do jogo.'),
                  font=(T.BODY, 9), fg=T.MUTED, bg=T.NIGHT).pack(anchor='w', padx=30)
         self.find_pads(quiet=True)
 
+    # ---- the two layers --------------------------------------------------------------------------
+    def load_layers(self):
+        """Reads player 1's bindings into the controller and keyboard/mouse layers; a missing
+        keyboard/mouse layer gets the default one (always on, as in SotC-PC)."""
+        self.pad_binds, self.kbm_binds = C.split_layers(C.read_bindings(INI))
+        layout = C.kbm_layout(self.settings.get('mouse_camera', True),
+                              self.settings.get('mouse_invert', False))
+        missing = [k for k in C.BINDING_KEYS if k not in self.kbm_binds and k in layout]
+        if missing:
+            self.kbm_binds.update({k: layout[k] for k in missing})
+            self.write_layers(C.BINDING_KEYS)
+
+    def write_layers(self, keys):
+        values = {f'player_0_{k}': f'"{C.combo(self.pad_binds.get(k), self.kbm_binds.get(k))}"'
+                  for k in keys}
+        values.update({'player_0_connected': 'true', 'player_0_type': 0})
+        write_ini(values)
+
+    def editing_kbm(self):
+        return getattr(self, 'layer_var', None) is None or \
+            self.layer_var.get() == _('Teclado e mouse')
+
+    def refresh_binding_labels(self):
+        layer = self.kbm_binds if self.editing_kbm() else self.pad_binds
+        for key, lbl in getattr(self, 'bind_labels', {}).items():
+            try:
+                lbl.config(text=C.describe(layer.get(key), _))
+            except tk.TclError:
+                pass
+
+    def save_layer(self, kbm, changes):
+        (self.kbm_binds if kbm else self.pad_binds).update(changes)
+        self.write_layers(changes.keys())
+        self.refresh_binding_labels()
+
     def build_keyboard_mouse(self, page):
-        """Keyboard and mouse: a ready layout (WASD, mouse camera, clicks for sword and
-        targeting), the mouse camera itself (Lichii's mouse panning on the right stick), its
-        sensitivity and vertical inversion."""
+        """Keyboard and mouse, always on beside the controller: the default layout (WASD,
+        mouse camera, clicks for sword and targeting), the mouse camera itself (Lichii's mouse
+        panning on the right stick), its sensitivity and vertical inversion."""
         s = self.settings
         box = self.card(page, _('Teclado e mouse'))
         row = tk.Frame(box, bg=T.PANEL)
         row.pack(fill='x', padx=18, pady=(0, 6))
-        T.Button(row, _('Usar teclado e mouse'), self.use_keyboard_mouse).pack(side='left')
-        tk.Label(row, text=_('WASD anda (C devagar), o mouse move a câmera, clique esquerdo = '
-                             'espada (B), clique direito = mirar (ZL), Espaço = ação (A).'),
-                 font=(T.BODY, 9), fg=T.MUTED, bg=T.PANEL, wraplength=520,
+        T.Button(row, _('Restaurar padrão'), self.use_keyboard_mouse).pack(side='left')
+        tk.Label(row, text=_('Sempre ligados, junto com o controle. WASD anda (C devagar), o '
+                             'mouse move a câmera, clique esquerdo = espada (B), clique direito '
+                             '= mirar (ZL), Espaço = ação (A).'),
+                 font=(T.BODY, 9), fg=T.MUTED, bg=T.PANEL, wraplength=560,
                  justify='left').pack(side='left', padx=(14, 0))
         row = tk.Frame(box, bg=T.PANEL)
         row.pack(fill='x', padx=18, pady=4)
         tk.Label(row, text=_('Mouse move a câmera'), font=(T.BODY, 10), fg=T.TEXT,
                  bg=T.PANEL).pack(side='left')
-        self.mouse_switch = T.Switch(row, s.get('mouse_camera', False), self.set_mouse_camera)
+        self.mouse_switch = T.Switch(row, s.get('mouse_camera', True), self.set_mouse_camera)
         self.mouse_switch.pack(side='right')
         self.combo(box, 'mouse_sens', _('Sensibilidade do mouse'), MOUSE_SENS, width=8)
         row = tk.Frame(box, bg=T.PANEL)
@@ -915,31 +967,23 @@ class Launcher(tk.Tk):
                                                                 pady=(2, 10))
 
     def set_mouse_camera(self, on):
-        if on and not C.is_mouse_stick(self.bindings.get('rstick', '')):
-            self.settings['rstick_before_mouse'] = self.bindings.get('rstick', '')
         self.set_opt('mouse_camera', bool(on))
-        if on:
-            self.save_bindings({'rstick': C.mouse_stick(self.settings.get('mouse_invert'))})
-        elif C.is_mouse_stick(self.bindings.get('rstick', '')):
-            before = self.settings.get('rstick_before_mouse') or C.default_keyboard()['rstick']
-            self.save_bindings({'rstick': before})
+        rstick = C.kbm_layout(bool(on), self.settings.get('mouse_invert', False))['rstick']
+        self.save_layer(True, {'rstick': rstick})
 
     def set_mouse_invert(self, on):
         self.set_opt('mouse_invert', bool(on))
-        if C.is_mouse_stick(self.bindings.get('rstick', '')):
-            self.save_bindings({'rstick': C.mouse_stick(bool(on))})
+        if C.is_mouse_stick(self.kbm_binds.get('rstick', '')):
+            self.save_layer(True, {'rstick': C.mouse_stick(bool(on))})
 
     def use_keyboard_mouse(self):
-        if not C.is_mouse_stick(self.bindings.get('rstick', '')):
-            self.settings['rstick_before_mouse'] = self.bindings.get('rstick', '')
-        self.dev_var.set(_('Teclado e mouse'))
-        self.save_bindings(C.keyboard_mouse(self.settings.get('mouse_invert')))
-        self.set_opt('mouse_camera', True)
-        self.mouse_switch.set(True)
+        self.save_layer(True, C.kbm_layout(self.settings.get('mouse_camera', True),
+                                           self.settings.get('mouse_invert', False)))
         self.pad_status.config(text=_('Teclado e mouse prontos.'))
 
+    # ---- the controller ------------------------------------------------------------------------
     def current_pad(self):
-        """The chosen controller (a dict from eden-cli) or None for the keyboard."""
+        """The chosen controller (a dict from eden-cli), or None."""
         name = self.dev_var.get()
         return next((p for p in self.pads if p.get('name') == name), None)
 
@@ -954,38 +998,35 @@ class Launcher(tk.Tk):
             def done():
                 try:
                     self.pads = pads
-                    self.dev_box.configure(values=[_('Teclado e mouse')] +
-                                           [p['name'] for p in pads])
-                    # Show the device the bindings already use.
-                    guid = C.parse(self.bindings.get('button_a', '')).get('guid')
+                    self.dev_box.configure(values=[p['name'] for p in pads] or
+                                           [_('Nenhum controle')])
+                    # The controller the bindings already use, else the first one found.
+                    guid = C.parse(self.pad_binds.get('button_a', '')).get('guid')
                     match = next((p for p in pads if C.parse(p['params']).get('guid') == guid),
                                  None)
                     if match:
                         self.dev_var.set(match['name'])
-                    elif pads and not quiet:
+                    elif pads:
                         self.dev_var.set(pads[0]['name'])
+                    else:
+                        self.dev_var.set(_('Nenhum controle'))
                     self.pad_status.config(
                         text=_('{n} controle(s) encontrado(s).', n=len(pads)) if pads
                         else _('Nenhum controle encontrado.'))
+                    # A controller with buttons or sticks not mapped yet (a first controller,
+                    # or a stick the keyboard/mouse took before 0.13): mapped at once, without
+                    # touching what the player set.
+                    if pads and any(k not in self.pad_binds for k in C.BINDING_KEYS):
+                        self.automap(only_missing=True)
                 except tk.TclError:
                     pass
             self.after(0, done)
         threading.Thread(target=work, daemon=True).start()
 
-    def save_bindings(self, changes):
-        self.bindings.update(changes)
-        values = C.ini_values(changes)
-        values.update({'player_0_connected': 'true', 'player_0_type': 0})
-        write_ini(values)
-        for key in changes:
-            if key in self.bind_labels:
-                self.bind_labels[key].config(text=C.describe(changes[key], _))
-
-    def automap(self):
+    def automap(self, only_missing=False):
         pad = self.current_pad()
         if pad is None:
-            self.save_bindings(C.default_keyboard())
-            self.pad_status.config(text=_('Teclado: teclas padrão restauradas.'))
+            self.pad_status.config(text=_('Nenhum controle encontrado.'))
             return
         self.pad_status.config(text=_('Mapeando {name}...', name=pad['name']))
 
@@ -994,8 +1035,9 @@ class Launcher(tk.Tk):
 
             def done():
                 if mapping:
-                    self.save_bindings({k: v for k, v in mapping.items()
-                                        if k in self.bind_labels})
+                    self.save_layer(False, {k: v for k, v in mapping.items()
+                                            if k in C.BINDING_KEYS and
+                                            not (only_missing and k in self.pad_binds)})
                     self.pad_status.config(text=_('Mapeado: {name}', name=pad['name']))
                 else:
                     self.pad_status.config(text=_('Não foi possível mapear o controle.'))
@@ -1003,7 +1045,11 @@ class Launcher(tk.Tk):
         threading.Thread(target=work, daemon=True).start()
 
     def change_binding(self, key, name, stick):
-        pad = self.current_pad()
+        kbm = self.editing_kbm()
+        pad = None if kbm else self.current_pad()
+        if not kbm and pad is None:
+            self.pad_status.config(text=_('Nenhum controle encontrado.'))
+            return
         dlg = tk.Toplevel(self)
         dlg.title(APP)
         dlg.configure(bg=T.PANEL, highlightthickness=1, highlightbackground=T.GOLD)
@@ -1021,7 +1067,7 @@ class Launcher(tk.Tk):
         dlg.grab_set()
         dlg.focus_force()
 
-        if pad is None:  # keyboard: Tk captures the key itself
+        if kbm:  # keyboard and mouse: Tk captures the key or the click itself
             directions = [_('cima'), _('baixo'), _('esquerda'), _('direita')] if stick else []
             keys = []
 
@@ -1038,7 +1084,7 @@ class Launcher(tk.Tk):
                 button = C.TK_MOUSE_BUTTONS.get(getattr(event, 'num', 0))
                 if stick or button is None:
                     return
-                self.save_bindings({key: C.mouse_param(button)})
+                self.save_layer(True, {key: C.mouse_param(button)})
                 dlg.destroy()
             if not stick:
                 msg.bind('<ButtonPress>', on_click)
@@ -1055,12 +1101,12 @@ class Launcher(tk.Tk):
                     hint.config(text=_('F1, F7, F8, F10 e F11 são atalhos do ZooT.'), fg=T.RED)
                     return
                 if not stick:
-                    self.save_bindings({key: C.key_param(code)})
+                    self.save_layer(True, {key: C.key_param(code)})
                     dlg.destroy()
                     return
                 keys.append(code)
                 if len(keys) == 4:
-                    self.save_bindings({key: C.stick_from_keys(*keys)})
+                    self.save_layer(True, {key: C.stick_from_keys(*keys)})
                     dlg.destroy()
                 else:
                     prompt()
@@ -1093,7 +1139,7 @@ class Launcher(tk.Tk):
                 return
             params = C.read_capture(proc)
             if params:
-                self.save_bindings({key: params})
+                self.save_layer(False, {key: params})
                 dlg.destroy()
             else:
                 msg.config(text=_('Nada foi apertado.'))
@@ -1481,10 +1527,12 @@ class Launcher(tk.Tk):
             messagebox.showerror(APP, _('eden-cli.exe não encontrado em {path}', path=BASE))
             return
         self.apply_ini()
+        if not hasattr(self, 'kbm_binds'):
+            self.load_layers()  # keyboard and mouse always on, even before Controls was opened
         env = dict(os.environ)
         env['ZOOT_PORT_VERSION'] = VERSION
         env['ZOOT_LANG'] = I18N.LANG  # the loading screen speaks the launcher's language
-        env['ZOOT_MOUSE_CAMERA'] = '1' if self.settings.get('mouse_camera') else '0'
+        env['ZOOT_MOUSE_CAMERA'] = '1' if self.settings.get('mouse_camera', True) else '0'
         if self.settings['gpl']:
             env['EDEN_NX2_GPL_OPTIMIZE'] = '1'
         args = [str(CORE), '-g', self.settings['game']]

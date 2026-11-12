@@ -674,6 +674,28 @@ T = {
                         'ja': 'マウスサイド 1', 'ko': '마우스 측면 1', 'ru': 'Боковая кнопка 1'},
     'Mouse lateral 2': {'en': 'Mouse side 2', 'es': 'Ratón lateral 2', 'fr': 'Souris latéral 2',
                         'ja': 'マウスサイド 2', 'ko': '마우스 측면 2', 'ru': 'Боковая кнопка 2'},
+    'Controle': {'en': 'Controller', 'es': 'Mando', 'fr': 'Manette', 'ja': 'コントローラー',
+                 'ko': '컨트롤러', 'ru': 'Геймпад'},
+    'Nenhum controle': {'en': 'No controller', 'es': 'Ningún mando', 'fr': 'Aucune manette',
+                        'ja': 'コントローラーなし', 'ko': '컨트롤러 없음', 'ru': 'Нет геймпада'},
+    'Mostrar': {'en': 'Show', 'es': 'Mostrar', 'fr': 'Afficher', 'ja': '表示', 'ko': '보기',
+                'ru': 'Показать'},
+    'Restaurar padrão': {'en': 'Restore defaults', 'es': 'Restaurar', 'fr': 'Par défaut',
+                         'ja': '初期設定に戻す', 'ko': '기본값 복원', 'ru': 'По умолчанию'},
+    'Sempre ligados, junto com o controle. WASD anda (C devagar), o mouse move a câmera, clique '
+    'esquerdo = espada (B), clique direito = mirar (ZL), Espaço = ação (A).': {
+        'en': 'Always on, together with the controller. WASD walks (C slowly), the mouse turns '
+              'the camera, left click = sword (B), right click = target (ZL), Space = action (A).',
+        'es': 'Siempre activos, junto con el mando. WASD camina (C despacio), el ratón mueve la '
+              'cámara, clic izquierdo = espada (B), clic derecho = fijar (ZL), Espacio = acción (A).',
+        'fr': 'Toujours actifs, avec la manette. WASD pour marcher (C lentement), la souris tourne '
+              'la caméra, clic gauche = épée (B), clic droit = cibler (ZL), Espace = action (A).',
+        'ja': 'コントローラーと同時に常に有効。WASD で移動 (C でゆっくり)、マウスでカメラ、'
+              '左クリック = 剣 (B)、右クリック = 注目 (ZL)、Space = アクション (A)。',
+        'ko': '컨트롤러와 함께 항상 켜져 있습니다. WASD 이동 (C 천천히), 마우스로 카메라, '
+              '왼쪽 클릭 = 검 (B), 오른쪽 클릭 = 주목 (ZL), Space = 액션 (A).',
+        'ru': 'Всегда включены вместе с геймпадом. WASD — ходьба (C — медленно), мышь — камера, '
+              'левый клик — меч (B), правый — прицел (ZL), Пробел — действие (A).'},
 }
 
 HELP = {
