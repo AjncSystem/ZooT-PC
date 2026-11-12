@@ -6,8 +6,9 @@
 //       Arrows choose and change, F1 or Esc closes.
 //   F7  FPS mode: 60 -> 30 -> unlimited -> 60.
 //   F8  frame generation (Lichii's built-in optical flow, 2x) on and off.
-//   F10 performance panel in the top-left corner: FPS (game frames plus generated ones), frame
-//       time, the game's video memory and RAM, and a frame time graph of the last 30 s.
+//   F10 performance panel at the top (left, center or right): FPS (game frames plus generated
+//       ones), frame time, the game's CPU and GPU use, video memory and RAM, the PC's RAM in
+//       use, and a frame time graph of the last 30 s.
 //   F11 fullscreen.
 // The menu and the short notices are small windows owned by the game window (opaque panels: a
 // see-through window over the game's Vulkan output is not reliable on Windows). Every change is
@@ -111,8 +112,7 @@ private:
     unsigned long long perf_generated{};  // frame generation's count at the last sample
     double perf_generated_fps{};
     bool perf_fg_running{};
-    double perf_vram{}, perf_vram_total{}, perf_ram{}, perf_ram_total{};  // bytes
-    bool perf_vram_ok{};
+
     int perf_position{};  // 0 top left, 1 top center, 2 top right
     std::vector<Item> items;
     int selected{};  ///< row within the current tab

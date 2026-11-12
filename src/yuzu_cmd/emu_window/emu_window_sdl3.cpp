@@ -41,7 +41,7 @@ static bool MousePanning() {
 
 std::string ZootBaseTitle() {
     const char* const port = std::getenv("ZOOT_PORT_VERSION");
-    return fmt::format("ZooT v{}", port && *port ? port : "0.13");
+    return fmt::format("ZooT v{}", port && *port ? port : "0.13.1");
 }
 
 static std::string ZootWindowTitle(Core::System& system, double fps) {

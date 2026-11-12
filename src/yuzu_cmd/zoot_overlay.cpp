@@ -6,12 +6,15 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <atomic>
+#include <thread>
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#include <dxgi1_4.h>
+#include <pdh.h>
+#include <pdhmsg.h>
 #include <psapi.h>
-#pragma comment(lib, "dxgi.lib")
+#pragma comment(lib, "pdh.lib")
 
 #include <SDL3/SDL.h>
 #include <fmt/format.h>
@@ -20,6 +23,7 @@
 #include "common/fs/path_util.h"
 #include "common/logging.h"
 #include "common/settings.h"
+#include "common/thread.h"
 #include "core/core.h"
 #include "core/hle/service/am/applet_manager.h"
 #include "video_core/renderer_base.h"
@@ -311,64 +315,157 @@ const char* UpscalerKey(int v) {
     return v == UpscalerFsr31 ? "fsr31" : v == UpscalerFsr4 ? "fsr4" : v == UpscalerDlss ? "dlss" : "game";
 }
 
-/// The game's video memory use, from the graphics card with the most dedicated memory (DXGI
-/// counts every allocation this process made on it, Vulkan's too) and that card's size.
-class VramProbe {
+/// The F10 panel's numbers, the same counters Task Manager shows (PDH, by English counter name
+/// so they work on any Windows language), sampled once a second on a thread of its own: CPU and
+/// GPU (3D engine) use of this process, its video memory, its RAM, the PC's RAM in use. Nothing
+/// of DXGI: a DXGI query beside Streamline's DXGI hooks crashed the game (0.13).
+class PerfSampler {
 public:
-    VramProbe() {
-        IDXGIFactory1* factory = nullptr;
-        if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory1), reinterpret_cast<void**>(&factory)))) {
-            return;
-        }
-        IDXGIAdapter1* a = nullptr;
-        for (UINT i = 0; factory->EnumAdapters1(i, &a) != DXGI_ERROR_NOT_FOUND; ++i) {
-            DXGI_ADAPTER_DESC1 d{};
-            if (SUCCEEDED(a->GetDesc1(&d)) && !(d.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) &&
-                double(d.DedicatedVideoMemory) > total) {
-                IDXGIAdapter3* a3 = nullptr;
-                if (SUCCEEDED(a->QueryInterface(__uuidof(IDXGIAdapter3),
-                                                reinterpret_cast<void**>(&a3)))) {
-                    if (adapter) {
-                        adapter->Release();
-                    }
-                    adapter = a3;
-                    total = double(d.DedicatedVideoMemory);
-                }
-            }
-            a->Release();
-        }
-        factory->Release();
-    }
-    ~VramProbe() {
-        if (adapter) {
-            adapter->Release();
-        }
-    }
-    bool Query(double& used, double& size) const {
-        DXGI_QUERY_VIDEO_MEMORY_INFO info{};
-        if (!adapter ||
-            FAILED(adapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info))) {
-            return false;
-        }
-        used = double(info.CurrentUsage);
-        size = total;
-        return true;
+    std::atomic<double> cpu{-1}, gpu{-1}, vram{-1}, vram_total{0}, ram{0}, ram_used{0},
+        ram_total{0};
+
+    PerfSampler() {
+        vram_total.store(DedicatedVideoMemory());
+        thread = std::jthread([this](std::stop_token stop) { Run(stop); });
     }
 
 private:
-    IDXGIAdapter3* adapter{};
-    double total{};
+    static double DedicatedVideoMemory() {
+        // The largest card's memory, as the driver writes it in the registry (like the launcher).
+        double best = 0;
+        HKEY cls{};
+        const wchar_t* base =
+            L"SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e968-e325-11ce-bfc1-08002be10318}";
+        if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, base, 0, KEY_READ, &cls) != ERROR_SUCCESS) {
+            return 0;
+        }
+        for (DWORD i = 0; i < 64; ++i) {
+            wchar_t name[256];
+            DWORD len = 256;
+            if (RegEnumKeyExW(cls, i, name, &len, nullptr, nullptr, nullptr, nullptr) !=
+                ERROR_SUCCESS) {
+                break;
+            }
+            unsigned long long size = 0;
+            DWORD bytes = sizeof(size);
+            if (RegGetValueW(cls, name, L"HardwareInformation.qwMemorySize", RRF_RT_QWORD,
+                             nullptr, &size, &bytes) == ERROR_SUCCESS) {
+                best = std::max(best, double(size));
+            }
+        }
+        RegCloseKey(cls);
+        return best;
+    }
+
+    static double SumCounter(PDH_HCOUNTER counter, bool largest = false) {
+        DWORD size = 0, count = 0;
+        if (PdhGetFormattedCounterArrayW(counter, PDH_FMT_DOUBLE, &size, &count, nullptr) !=
+                static_cast<PDH_STATUS>(PDH_MORE_DATA) ||
+            size == 0) {
+            return -1;
+        }
+        std::vector<unsigned char> buffer(size);
+        auto* items = reinterpret_cast<PDH_FMT_COUNTERVALUE_ITEM_W*>(buffer.data());
+        if (PdhGetFormattedCounterArrayW(counter, PDH_FMT_DOUBLE, &size, &count, items) !=
+            ERROR_SUCCESS) {
+            return -1;
+        }
+        double sum = 0;
+        for (DWORD i = 0; i < count; ++i) {
+            if (items[i].FmtValue.CStatus == PDH_CSTATUS_VALID_DATA ||
+                items[i].FmtValue.CStatus == PDH_CSTATUS_NEW_DATA) {
+                sum = largest ? std::max(sum, items[i].FmtValue.doubleValue)
+                              : sum + items[i].FmtValue.doubleValue;
+            }
+        }
+        return sum;
+    }
+
+    void Run(std::stop_token stop) {
+        Common::SetCurrentThreadName("ZootPerfSampler");
+        const DWORD pid = GetCurrentProcessId();
+        PDH_HQUERY query{};
+        PDH_HCOUNTER gpu_counter{}, vram_counter{};
+        if (PdhOpenQueryW(nullptr, 0, &query) == ERROR_SUCCESS) {
+            const std::wstring gpu_path =
+                L"\\GPU Engine(pid_" + std::to_wstring(pid) + L"_*engtype_3D)\\Utilization Percentage";
+            // The card's whole video memory in use (Task Manager's Performance tab): NVIDIA's
+            // Vulkan allocations mostly fall outside the per-process count.
+            const std::wstring vram_path = L"\\GPU Adapter Memory(*)\\Dedicated Usage";
+            if (PdhAddEnglishCounterW(query, gpu_path.c_str(), 0, &gpu_counter) != ERROR_SUCCESS) {
+                gpu_counter = nullptr;
+            }
+            if (PdhAddEnglishCounterW(query, vram_path.c_str(), 0, &vram_counter) !=
+                ERROR_SUCCESS) {
+                vram_counter = nullptr;
+            }
+            PdhCollectQueryData(query);
+        }
+        SYSTEM_INFO info{};
+        GetSystemInfo(&info);
+        const double cores = std::max<DWORD>(1, info.dwNumberOfProcessors);
+        ULARGE_INTEGER last_cpu{}, last_wall{};
+        const auto cpu_time = [] {
+            FILETIME create, exit, kernel, user;
+            ULARGE_INTEGER total{};
+            if (GetProcessTimes(GetCurrentProcess(), &create, &exit, &kernel, &user)) {
+                ULARGE_INTEGER k{{kernel.dwLowDateTime, kernel.dwHighDateTime}};
+                ULARGE_INTEGER u{{user.dwLowDateTime, user.dwHighDateTime}};
+                total.QuadPart = k.QuadPart + u.QuadPart;
+            }
+            return total;
+        };
+        const auto wall_time = [] {
+            FILETIME now;
+            GetSystemTimeAsFileTime(&now);
+            return ULARGE_INTEGER{{now.dwLowDateTime, now.dwHighDateTime}};
+        };
+        last_cpu = cpu_time();
+        last_wall = wall_time();
+        while (!stop.stop_requested()) {
+            for (int i = 0; i < 10 && !stop.stop_requested(); ++i) {
+                std::this_thread::sleep_for(std::chrono::milliseconds{100});
+            }
+            const auto c = cpu_time();
+            const auto w = wall_time();
+            if (w.QuadPart > last_wall.QuadPart) {
+                cpu.store(100.0 * double(c.QuadPart - last_cpu.QuadPart) /
+                          (double(w.QuadPart - last_wall.QuadPart) * cores));
+            }
+            last_cpu = c;
+            last_wall = w;
+            if (query && PdhCollectQueryData(query) == ERROR_SUCCESS) {
+                if (gpu_counter) {
+                    const double g = SumCounter(gpu_counter);
+                    gpu.store(g < 0 ? -1 : std::min(100.0, g));
+                }
+                if (vram_counter) {
+                    vram.store(SumCounter(vram_counter, true));
+                }
+            }
+            PROCESS_MEMORY_COUNTERS pmc{};
+            pmc.cb = sizeof(pmc);
+            if (K32GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
+                ram.store(double(pmc.WorkingSetSize));
+            }
+            MEMORYSTATUSEX ms{};
+            ms.dwLength = sizeof(ms);
+            if (GlobalMemoryStatusEx(&ms)) {
+                ram_total.store(double(ms.ullTotalPhys));
+                ram_used.store(double(ms.ullTotalPhys - ms.ullAvailPhys));
+            }
+        }
+        if (query) {
+            PdhCloseQuery(query);
+        }
+    }
+
+    std::jthread thread;
 };
 
-/// This process's RAM (working set) and the PC's installed RAM, in bytes.
-void RamUse(double& used, double& size) {
-    PROCESS_MEMORY_COUNTERS pmc{};
-    pmc.cb = sizeof(pmc);
-    used = K32GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc)) ? double(pmc.WorkingSetSize)
-                                                                            : 0.0;
-    MEMORYSTATUSEX ms{};
-    ms.dwLength = sizeof(ms);
-    size = GlobalMemoryStatusEx(&ms) ? double(ms.ullTotalPhys) : 0.0;
+PerfSampler& Sampler() {
+    static PerfSampler sampler;
+    return sampler;
 }
 
 } // Anonymous namespace
@@ -773,7 +870,7 @@ void Overlay::TogglePerf() {
     LOG_INFO(Frontend, "ZooT: performance panel {}", perf_open ? "on" : "off");
     if (perf_open) {
         if (!perf.window) {
-            if (!MakePanel(perf, 250, 124)) {
+            if (!MakePanel(perf, 270, 146)) {
                 perf_open = false;
                 return;
             }
@@ -1056,9 +1153,6 @@ void Overlay::Tick() {
                 perf_generated = fg.generated_frames;
             }
             perf_last = now;
-            static const VramProbe vram;
-            perf_vram_ok = vram.Query(perf_vram, perf_vram_total);
-            RamUse(perf_ram, perf_ram_total);
             DrawPerf();
         } else if (!minimized) {
             PlaceCorner(perf.window);
@@ -1091,7 +1185,7 @@ void Overlay::DrawPerf() {
     PlaceCorner(perf.window);
     int pw = 0, ph = 0;
     SDL_GetCurrentRenderOutputSize(perf.renderer, &pw, &ph);
-    const float s = float(pw) / 250.0f;
+    const float s = float(pw) / 270.0f;
     SDL_Renderer* r = perf.renderer;
     const float W = float(pw), H = float(ph);
     Fill(r, 0, 0, W, H, 0x0B1222);
@@ -1109,25 +1203,34 @@ void Overlay::DrawPerf() {
     }
     const Text& detail = GetText(perf, info, int(13 * s), false, false);
     Put(perf, detail, 16 * s + big.w, 8 * s + big.h - detail.h - 3 * s, Muted);  // "small" is a macro in rpcndr.h
-    // Memory: red when the game holds more than 90% of the card or of the PC.
+    // CPU and GPU use of the game, its video memory and RAM, and the PC's RAM in use; red near
+    // the limit.
     constexpr double GB = 1024.0 * 1024.0 * 1024.0;
-    float mx = 16 * s;
-    const float my = 44 * s;
-    if (perf_vram_ok && perf_vram_total > 0) {
-        const Text& v = GetText(perf, fmt::format("VRAM {:.1f} / {:.0f} GB", perf_vram / GB,
-                                                  perf_vram_total / GB),
-                                int(12 * s), false, false);
-        Put(perf, v, mx, my, perf_vram > 0.9 * perf_vram_total ? 0xEF5350u : GoldLabel);
-        mx += v.w + 12 * s;
+    PerfSampler& m = Sampler();
+    const auto pct = [](double v) {
+        return v < 0 ? std::string("--") : fmt::format("{:.0f}%", v);
+    };
+    const double cpu = m.cpu.load(), gpu = m.gpu.load();
+    const Text& cg = GetText(perf, fmt::format("CPU {}    GPU {}", pct(cpu), pct(gpu)),
+                             int(12 * s), false, false);
+    Put(perf, cg, 16 * s, 42 * s, gpu > 97.0 ? 0xF0C060u : GoldLabel);
+    const double vram = m.vram.load(), vram_total = m.vram_total.load();
+    std::string mem;
+    if (vram >= 0) {
+        mem = vram_total > 0 ? fmt::format("VRAM {:.1f}/{:.0f} GB", vram / GB, vram_total / GB)
+                             : fmt::format("VRAM {:.1f} GB", vram / GB);
     }
-    if (perf_ram_total > 0) {
-        const Text& m = GetText(perf, fmt::format("RAM {:.1f} / {:.0f} GB", perf_ram / GB,
-                                                  perf_ram_total / GB),
-                                int(12 * s), false, false);
-        Put(perf, m, mx, my, perf_ram > 0.9 * perf_ram_total ? 0xEF5350u : GoldLabel);
+    const double ram_total = m.ram_total.load(), ram_used = m.ram_used.load();
+    if (ram_total > 0) {
+        mem += fmt::format("{}RAM {:.1f} GB  (PC {:.0f}/{:.0f})", mem.empty() ? "" : "   ",
+                           m.ram.load() / GB, ram_used / GB, ram_total / GB);
     }
+    const bool tight = (vram_total > 0 && vram > 0.9 * vram_total) ||
+                       (ram_total > 0 && ram_used > 0.9 * ram_total);
+    const Text& mt = GetText(perf, mem, int(12 * s), false, false);
+    Put(perf, mt, 16 * s, 62 * s, tight ? 0xEF5350u : GoldLabel);
     // Frame time graph: the last 60 half-second samples, 16.7 ms (60 FPS) as the guide line.
-    const float gx = 14 * s, gy = 70 * s, gw = W - 28 * s, gh = H - 80 * s;
+    const float gx = 14 * s, gy = 88 * s, gw = W - 28 * s, gh = H - 98 * s;
     Fill(r, gx, gy, gw, gh, 0x111C33);
     const float scale_ms = 50.0f;
     const float guide = gy + gh - gh * (16.7f / scale_ms);
