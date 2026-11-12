@@ -96,7 +96,9 @@ DEFAULTS = {
     'fullscreen': False, 'gpl': True, 'precache': True, 'volume': 100,
     'game_language': 17, 'launcher_language': 'pt', 'fps_mode': '60', 'sharpness': 25,
     'auto_update': True, 'last_update_check': 0, 'upscaler': 'game', 'framegen': 0,
+    'mouse_camera': False, 'mouse_sens': 50, 'mouse_invert': False, 'rstick_before_mouse': '',
 }
+MOUSE_SENS = [(f'{v}%', v) for v in (20, 35, 50, 65, 80, 100)]
 
 
 def hardware():
@@ -184,7 +186,8 @@ def write_ini(values):
             out.append(line)
     sections = {'volume': '[Audio]', 'language_index': '[System]', 'region_index': '[System]'}
     for key in (k for k in values if k not in seen):
-        header = '[Controls]' if key.startswith('player_') else sections.get(key, '[Renderer]')
+        header = ('[Controls]' if key.startswith(('player_', 'mouse_'))
+                  else sections.get(key, '[Renderer]'))
         if header not in out:
             out.append(header)
         i = out.index(header) + 1
@@ -834,9 +837,9 @@ class Launcher(tk.Tk):
         box = self.card(page, _('Dispositivo'))
         row = tk.Frame(box, bg=T.PANEL)
         row.pack(fill='x', padx=18, pady=(0, 6))
-        self.dev_var = tk.StringVar(value=_('Teclado'))
+        self.dev_var = tk.StringVar(value=_('Teclado e mouse'))
         self.dev_box = ttk.Combobox(row, textvariable=self.dev_var, state='readonly', width=30,
-                                    style='Zoot.TCombobox', values=[_('Teclado')])
+                                    style='Zoot.TCombobox', values=[_('Teclado e mouse')])
         self.dev_box.pack(side='left')
         T.Button(row, _('Mapear automaticamente'), self.automap).pack(side='right')
         T.Button(row, _('Procurar controles'), self.find_pads).pack(side='right', padx=8)
@@ -856,6 +859,8 @@ class Launcher(tk.Tk):
         sbox.pack(side='right', padx=(0, 12))
         sbox.bind('<<ComboboxSelected>>', lambda e: write_ini(
             {'player_0_vibration_strength': sv.get().rstrip('%')}))
+
+        self.build_keyboard_mouse(page)
 
         box = self.card(page, _('Botões'))
         grid = tk.Frame(box, bg=T.PANEL)
@@ -880,6 +885,59 @@ class Launcher(tk.Tk):
                  font=(T.BODY, 9), fg=T.MUTED, bg=T.NIGHT).pack(anchor='w', padx=30)
         self.find_pads(quiet=True)
 
+    def build_keyboard_mouse(self, page):
+        """Keyboard and mouse: a ready layout (WASD, mouse camera, clicks for sword and
+        targeting), the mouse camera itself (Lichii's mouse panning on the right stick), its
+        sensitivity and vertical inversion."""
+        s = self.settings
+        box = self.card(page, _('Teclado e mouse'))
+        row = tk.Frame(box, bg=T.PANEL)
+        row.pack(fill='x', padx=18, pady=(0, 6))
+        T.Button(row, _('Usar teclado e mouse'), self.use_keyboard_mouse).pack(side='left')
+        tk.Label(row, text=_('WASD anda (C devagar), o mouse move a câmera, clique esquerdo = '
+                             'espada (B), clique direito = mirar (ZL), Espaço = ação (A).'),
+                 font=(T.BODY, 9), fg=T.MUTED, bg=T.PANEL, wraplength=520,
+                 justify='left').pack(side='left', padx=(14, 0))
+        row = tk.Frame(box, bg=T.PANEL)
+        row.pack(fill='x', padx=18, pady=4)
+        tk.Label(row, text=_('Mouse move a câmera'), font=(T.BODY, 10), fg=T.TEXT,
+                 bg=T.PANEL).pack(side='left')
+        self.mouse_switch = T.Switch(row, s.get('mouse_camera', False), self.set_mouse_camera)
+        self.mouse_switch.pack(side='right')
+        self.combo(box, 'mouse_sens', _('Sensibilidade do mouse'), MOUSE_SENS, width=8)
+        row = tk.Frame(box, bg=T.PANEL)
+        row.pack(fill='x', padx=18, pady=4)
+        tk.Label(row, text=_('Inverter o eixo vertical'), font=(T.BODY, 10), fg=T.TEXT,
+                 bg=T.PANEL).pack(side='left')
+        T.Switch(row, s.get('mouse_invert', False), self.set_mouse_invert).pack(side='right')
+        tk.Label(box, text=_('No jogo, clique na janela para prender o mouse; Esc ou F1 soltam.'),
+                 font=(T.BODY, 9), fg=T.MUTED, bg=T.PANEL).pack(anchor='w', padx=18,
+                                                                pady=(2, 10))
+
+    def set_mouse_camera(self, on):
+        if on and not C.is_mouse_stick(self.bindings.get('rstick', '')):
+            self.settings['rstick_before_mouse'] = self.bindings.get('rstick', '')
+        self.set_opt('mouse_camera', bool(on))
+        if on:
+            self.save_bindings({'rstick': C.mouse_stick(self.settings.get('mouse_invert'))})
+        elif C.is_mouse_stick(self.bindings.get('rstick', '')):
+            before = self.settings.get('rstick_before_mouse') or C.default_keyboard()['rstick']
+            self.save_bindings({'rstick': before})
+
+    def set_mouse_invert(self, on):
+        self.set_opt('mouse_invert', bool(on))
+        if C.is_mouse_stick(self.bindings.get('rstick', '')):
+            self.save_bindings({'rstick': C.mouse_stick(bool(on))})
+
+    def use_keyboard_mouse(self):
+        if not C.is_mouse_stick(self.bindings.get('rstick', '')):
+            self.settings['rstick_before_mouse'] = self.bindings.get('rstick', '')
+        self.dev_var.set(_('Teclado e mouse'))
+        self.save_bindings(C.keyboard_mouse(self.settings.get('mouse_invert')))
+        self.set_opt('mouse_camera', True)
+        self.mouse_switch.set(True)
+        self.pad_status.config(text=_('Teclado e mouse prontos.'))
+
     def current_pad(self):
         """The chosen controller (a dict from eden-cli) or None for the keyboard."""
         name = self.dev_var.get()
@@ -896,7 +954,8 @@ class Launcher(tk.Tk):
             def done():
                 try:
                     self.pads = pads
-                    self.dev_box.configure(values=[_('Teclado')] + [p['name'] for p in pads])
+                    self.dev_box.configure(values=[_('Teclado e mouse')] +
+                                           [p['name'] for p in pads])
                     # Show the device the bindings already use.
                     guid = C.parse(self.bindings.get('button_a', '')).get('guid')
                     match = next((p for p in pads if C.parse(p['params']).get('guid') == guid),
@@ -970,8 +1029,20 @@ class Launcher(tk.Tk):
                 if stick:
                     msg.config(text=_('Aperte a tecla para {dir}', dir=directions[len(keys)]))
                 else:
-                    msg.config(text=_('Aperte a tecla para {name}', name=_(name)))
+                    msg.config(text=_('Aperte a tecla ou clique o botão do mouse para {name}',
+                                      name=_(name)))
             prompt()
+
+            def on_click(event):
+                # A mouse button for a console button (not for a stick's directions).
+                button = C.TK_MOUSE_BUTTONS.get(getattr(event, 'num', 0))
+                if stick or button is None:
+                    return
+                self.save_bindings({key: C.mouse_param(button)})
+                dlg.destroy()
+            if not stick:
+                msg.bind('<ButtonPress>', on_click)
+                dlg.bind('<ButtonPress>', on_click)
 
             def on_key(event):
                 if event.keysym == 'Escape':
@@ -1399,6 +1470,8 @@ class Launcher(tk.Tk):
             'nx2_frame_rate_limit': 240 if s['fps_mode'] == 'unlimited' else 60,
             'ocarina_fsr': fsr, 'amd_fsr4': fsr4, 'nvidia_dlss': dlss,
             'frame_gen': 'true' if s.get('framegen') else 'false', 'frame_gen_type': 1,
+            'mouse_panning_x_sensitivity': s.get('mouse_sens', 50),
+            'mouse_panning_y_sensitivity': s.get('mouse_sens', 50),
         })
 
     def play(self):
@@ -1411,6 +1484,7 @@ class Launcher(tk.Tk):
         env = dict(os.environ)
         env['ZOOT_PORT_VERSION'] = VERSION
         env['ZOOT_LANG'] = I18N.LANG  # the loading screen speaks the launcher's language
+        env['ZOOT_MOUSE_CAMERA'] = '1' if self.settings.get('mouse_camera') else '0'
         if self.settings['gpl']:
             env['EDEN_NX2_GPL_OPTIMIZE'] = '1'
         args = [str(CORE), '-g', self.settings['game']]

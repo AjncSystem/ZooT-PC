@@ -86,6 +86,12 @@ protected:
     /// Called by WaitEvent when the mouse moves.
     void OnMouseMotion(s32 x, s32 y);
 
+    /// ZooT-PC mouse camera (mouse panning): the mouse's relative movement while it is held in
+    /// the window turns the right stick. A click in the window holds it; Esc, F1 or leaving the
+    /// window lets it go.
+    void OnMousePan(float xrel, float yrel);
+    void ZootHoldMouse(bool hold);
+
     /// Called by WaitEvent when a finger starts touching the touchscreen
     void OnFingerDown(float x, float y, std::size_t id);
 
@@ -114,6 +120,7 @@ protected:
     std::atomic<double> zoot_fps{};
     std::atomic<double> zoot_frametime_ms{};
     unsigned zoot_title_ticks{};
+    float zoot_pan_rest_x{}, zoot_pan_rest_y{};  // sub-pixel movement left over
 
     // Mouse resetter once it
     SDL_TimerID mouse_timer;

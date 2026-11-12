@@ -35,6 +35,9 @@ Copy-Item (Join-Path $work 'dist\ZooT\ZooT.exe') $out
 Copy-Item -Recurse (Join-Path $work 'dist\ZooT\launcher') "$out\launcher"
 $bin = Join-Path $root 'build\bin'
 Copy-Item (Join-Path $bin 'eden-cli.exe') $out
+# Pipeline state list, when one is kept in the repository (see zoot\pipeline-states\README.md).
+$list = Join-Path $src 'zoot\pipeline-states\zoot-pipeline-states.bin'
+if (Test-Path $list) { Copy-Item $list $out }
 Copy-Item (Join-Path $src 'dist\nx2_switches.txt') $out -ErrorAction SilentlyContinue
 if (-not (Test-Path "$out\nx2_switches.txt")) { Copy-Item (Join-Path $bin 'nx2_switches.txt') $out }
 foreach ($dll in 'msvcp140.dll', 'msvcp140_1.dll', 'msvcp140_2.dll', 'msvcp140_atomic_wait.dll',
@@ -63,7 +66,8 @@ if (Test-Path (Join-Path $sl 'sl.interposer.dll')) {
 # 3. Safety: nothing but our own files.
 $bad = Get-ChildItem $out -Recurse -File | Where-Object {
     $_.Extension -in '.nup', '.nx', '.nsp', '.xci', '.nca', '.keys', '.sav', '.jpg' -or
-    ($_.Extension -eq '.bin' -and $_.FullName -notmatch '\\launcher\\') -or
+    ($_.Extension -eq '.bin' -and $_.FullName -notmatch '\\launcher\\' -and
+     $_.Name -ne 'zoot-pipeline-states.bin') -or
     $_.Name -match '^(capa|game-icon|icon)\.(png|jpg)$' -or $_.FullName -match '\\user\\.+'
 }
 if ($bad) { $bad | ForEach-Object { $_.FullName }; throw 'Package holds files it must not ship' }

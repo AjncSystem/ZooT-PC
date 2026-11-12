@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -38,9 +39,13 @@ constexpr int KeyF8 = SDL_SCANCODE_F8;
 constexpr int KeyF10 = SDL_SCANCODE_F10;
 constexpr int KeyF11 = SDL_SCANCODE_F11;
 
-constexpr unsigned White = 0xF4F6FB;
-constexpr unsigned Muted = 0x9AA6BD;
-constexpr unsigned Gold = 0xE7C164;
+// Gold on dark blue, the launcher's palette (zoot_theme.py): the text is gold everywhere.
+constexpr unsigned White = 0xFBE6A6;      // strong gold: values, the chosen row
+constexpr unsigned Muted = 0xA8935C;      // dim gold: hints, notes, the key help
+constexpr unsigned Gold = 0xE7C164;       // accent gold: the title, the chosen value
+constexpr unsigned GoldLabel = 0xD9BD6A;  // row names
+constexpr unsigned GoldDark = 0x6E5C33;   // arrows of the other rows
+constexpr unsigned GoldLine = 0x4A3F24;   // borders and separators
 
 // ---- texts, in the launcher's language (ZOOT_LANG) ---------------------------------------------
 struct Phrase {
@@ -109,6 +114,111 @@ constexpr Phrase Phrases[] = {
     {"left", "Esquerda", "Left", "Izquierda", "Gauche", "左", "왼쪽", "Слева"},
     {"center", "Meio", "Center", "Centro", "Centre", "中央", "가운데", "По центру"},
     {"right", "Direita", "Right", "Derecha", "Droite", "右", "오른쪽", "Справа"},
+    {"tab_display", "Imagem", "Display", "Imagen", "Image", "画面", "화면", "Изображение"},
+    {"tab_perf", "Desempenho", "Performance", "Rendimiento", "Performances", "パフォーマンス",
+     "성능", "Производительность"},
+    {"tab_audio", "Áudio", "Audio", "Audio", "Audio", "オーディオ", "오디오", "Звук"},
+    {"tab_controls", "Controles", "Controls", "Controles", "Commandes", "操作", "조작",
+     "Управление"},
+    {"mouse_sens", "Sensibilidade do mouse", "Mouse sensitivity", "Sensibilidad del ratón",
+     "Sensibilité de la souris", "マウス感度", "마우스 감도", "Чувствительность мыши"},
+    {"choose", "Escolher", "Choose", "Elegir", "Choisir", "選択", "선택", "Выбор"},
+    {"change", "Mudar", "Change", "Cambiar", "Modifier", "変更", "변경", "Изменить"},
+    {"tabs", "Abas", "Tabs", "Pestañas", "Onglets", "タブ", "탭", "Вкладки"},
+    {"close", "Fechar", "Close", "Cerrar", "Fermer", "閉じる", "닫기", "Закрыть"},
+    {"restart_note", "Vale ao reabrir o jogo", "Applies on the next start",
+     "Se aplica al reabrir el juego", "S’applique au prochain lancement", "次回起動時に反映",
+     "다음 실행 시 적용", "Применится при следующем запуске"},
+    {"h_fps", "Limite de quadros: 60, 30 ou ilimitado. A velocidade do jogo não muda. F7 alterna.",
+     "Frame rate cap: 60, 30 or unlimited. The game's speed stays the same. F7 cycles it.",
+     "Límite de fotogramas: 60, 30 o ilimitado. La velocidad del juego no cambia. F7 lo alterna.",
+     "Limite d’images : 60, 30 ou illimité. La vitesse du jeu ne change pas. F7 l’alterne.",
+     "フレームレート上限: 60・30・無制限。ゲーム速度は変わりません。F7 で切替。",
+     "프레임 제한: 60, 30, 무제한. 게임 속도는 그대로입니다. F7로 전환.",
+     "Ограничение кадров: 60, 30 или без ограничения. Скорость игры не меняется. F7 — переключение."},
+    {"h_fullscreen", "Janela ou tela cheia. F11 alterna.", "Window or fullscreen. F11 switches it.",
+     "Ventana o pantalla completa. F11 lo alterna.", "Fenêtre ou plein écran. F11 l’alterne.",
+     "ウィンドウかフルスクリーン。F11 で切替。", "창 모드 또는 전체 화면. F11로 전환.",
+     "Окно или полный экран. F11 — переключение."},
+    {"h_filter", "Como a imagem é esticada até a janela. FSR 1 deixa mais nítido.",
+     "How the picture is scaled to the window. FSR 1 is the sharpest.",
+     "Cómo se escala la imagen a la ventana. FSR 1 es el más nítido.",
+     "Comment l’image est mise à l’échelle de la fenêtre. FSR 1 est le plus net.",
+     "画面をウィンドウに合わせる方法。FSR 1 が最も鮮明です。",
+     "화면을 창 크기에 맞추는 방식. FSR 1이 가장 선명합니다.",
+     "Как картинка растягивается до окна. FSR 1 — самый чёткий."},
+    {"h_sharp", "Nitidez do FSR (filtro e upscaler). 0% desliga.",
+     "FSR sharpening (filter and upscaler). 0% turns it off.",
+     "Nitidez de FSR (filtro y escalador). 0% la desactiva.",
+     "Netteté FSR (filtre et upscaler). 0 % la désactive.",
+     "FSR のシャープネス (フィルターとアップスケーラー)。0% でオフ。",
+     "FSR 선명도 (필터와 업스케일러). 0%는 끔.",
+     "Резкость FSR (фильтр и апскейлер). 0% — выключено."},
+    {"h_aa", "Suaviza o serrilhado das bordas. FXAA é leve; SMAA, mais caprichado.",
+     "Smooths jagged edges. FXAA is light; SMAA is finer.",
+     "Suaviza los bordes dentados. FXAA es ligero; SMAA, más fino.",
+     "Adoucit les bords crénelés. FXAA est léger ; SMAA, plus fin.",
+     "ギザギザを滑らかにします。FXAA は軽く、SMAA はより丁寧。",
+     "계단 현상을 부드럽게 합니다. FXAA는 가볍고 SMAA는 더 정교합니다.",
+     "Сглаживает зубчатые края. FXAA — лёгкое, SMAA — аккуратнее."},
+    {"h_aspect", "Formato da imagem. Formatos mais largos esticam o HUD.",
+     "Picture shape. Wider shapes stretch the HUD.",
+     "Forma de la imagen. Las más anchas estiran el HUD.",
+     "Format de l’image. Les formats plus larges étirent le HUD.",
+     "画面の形。横長にすると HUD が引き伸ばされます。",
+     "화면 비율. 더 넓은 비율은 HUD를 늘립니다.",
+     "Форма картинки. Более широкие растягивают интерфейс."},
+    {"h_vsync", "Sincroniza com o monitor e evita cortes na imagem. Desligado tem menos atraso.",
+     "Syncs with the monitor and avoids tearing. Off has less latency.",
+     "Sincroniza con el monitor y evita cortes. Apagado tiene menos retraso.",
+     "Synchronise avec l’écran et évite les déchirures. Désactivé a moins de latence.",
+     "モニターと同期してティアリングを防ぎます。オフは遅延が少なめ。",
+     "모니터와 동기화해 화면 찢김을 막습니다. 끄면 지연이 줄어듭니다.",
+     "Синхронизация с монитором без разрывов. Выключено — меньше задержка."},
+    {"h_mode", "TV (dock) desenha em resolução maior; Portátil é mais leve.",
+     "TV (docked) renders at a higher resolution; Handheld is lighter.",
+     "TV (dock) dibuja a mayor resolución; Portátil es más ligero.",
+     "TV (station) rend en plus haute résolution ; Portable est plus léger.",
+     "TV モードは高解像度、携帯モードは軽め。",
+     "TV 모드는 높은 해상도, 휴대 모드는 더 가볍습니다.",
+     "ТВ рисует в большем разрешении; портативный — легче."},
+    {"h_resolution", "Escala da resolução interna. Mais alta: mais nítida e mais pesada.",
+     "Internal resolution scale. Higher: sharper and heavier.",
+     "Escala de resolución interna. Más alta: más nítida y más pesada.",
+     "Échelle de résolution interne. Plus haute : plus nette et plus lourde.",
+     "内部解像度の倍率。高いほど鮮明で重くなります。",
+     "내부 해상도 배율. 높을수록 선명하고 무거워집니다.",
+     "Масштаб внутреннего разрешения. Выше — чётче и тяжелее."},
+    {"h_upscaler", "Quem reconstrói a imagem do jogo (1440p → 4K na TV). FSR 3.1 e DLSS deixam mais nítido.",
+     "What rebuilds the game's picture (1440p → 4K docked). FSR 3.1 and DLSS are sharper.",
+     "Lo que reconstruye la imagen del juego (1440p → 4K en TV). FSR 3.1 y DLSS son más nítidos.",
+     "Ce qui reconstruit l’image du jeu (1440p → 4K en TV). FSR 3.1 et DLSS sont plus nets.",
+     "ゲーム画面を再構成する方式 (TV で 1440p → 4K)。FSR 3.1 と DLSS はより鮮明。",
+     "게임 화면을 재구성하는 방식 (TV에서 1440p → 4K). FSR 3.1과 DLSS가 더 선명합니다.",
+     "Чем восстанавливается картинка (1440p → 4K на ТВ). FSR 3.1 и DLSS — чётче."},
+    {"h_framegen", "Um quadro gerado entre dois do jogo: mais fluidez, um pouco mais de atraso. F8 alterna.",
+     "One generated frame between two of the game's: smoother, a little more latency. F8 toggles it.",
+     "Un fotograma generado entre dos del juego: más fluidez, algo más de retraso. F8 lo alterna.",
+     "Une image générée entre deux du jeu : plus fluide, un peu plus de latence. F8 l’alterne.",
+     "ゲームの 2 フレームの間に 1 枚生成: より滑らか、遅延は少し増加。F8 で切替。",
+     "게임 프레임 사이에 1장 생성: 더 부드럽고 지연이 약간 늘어납니다. F8로 전환.",
+     "Один созданный кадр между двумя игровыми: плавнее, чуть больше задержка. F8 — переключение."},
+    {"h_perf_pos", "Onde o painel de desempenho (F10) fica no topo da tela.",
+     "Where the performance panel (F10) sits at the top of the screen.",
+     "Dónde va el panel de rendimiento (F10) en la parte superior.",
+     "Où se place le panneau de performances (F10) en haut de l’écran.",
+     "パフォーマンス表示 (F10) の画面上部での位置。",
+     "성능 패널(F10)이 화면 위쪽 어디에 놓일지.",
+     "Где панель производительности (F10) стоит вверху экрана."},
+    {"h_volume", "Volume do jogo.", "Game volume.", "Volumen del juego.", "Volume du jeu.",
+     "ゲームの音量。", "게임 음량.", "Громкость игры."},
+    {"h_mouse_sens", "Velocidade da câmera quando o mouse move a câmera (Controles do lançador).",
+     "Camera speed when the mouse turns the camera (launcher Controls).",
+     "Velocidad de la cámara cuando el ratón la mueve (Controles del lanzador).",
+     "Vitesse de la caméra quand la souris la tourne (Commandes du lanceur).",
+     "マウスでカメラを動かすときの速さ (ランチャーの操作設定)。",
+     "마우스로 카메라를 움직일 때의 속도 (런처의 조작 설정).",
+     "Скорость камеры, когда ею управляет мышь (Управление в лаунчере)."},
     {"soft", "suave", "soft", "suave", "doux", "ソフト", "부드럽게", "мягкий"},
     {"fps_notice", "FPS: {}", "FPS: {}", "FPS: {}", "FPS : {}", "FPS: {}", "FPS: {}", "FPS: {}"},
 };
@@ -286,19 +396,36 @@ Overlay::~Overlay() {
     FreePanel(perf);
 }
 
+std::vector<int> Overlay::TabRows() const {
+    std::vector<int> rows;
+    for (std::size_t i = 0; i < items.size(); ++i) {
+        if (items[i].tab == tab) {
+            rows.push_back(int(i));
+        }
+    }
+    return rows;
+}
+
 void Overlay::BuildItems() {
     using namespace Settings;
     items.clear();
+    enum { TabDisplay, TabPerf, TabAudio, TabControls };
+    const auto tag = [this](int tab_index, const char* help) {
+        items.back().tab = tab_index;
+        items.back().help = Say(help);
+    };
     items.push_back({Say("fps"),
                      {{"60", Fps60}, {"30", Fps30}, {Say("unlimited"), FpsUnlimited}},
                      [] { return int(CurrentFps()); },
                      [](int v) { ApplyFps(v); }});
+    tag(TabPerf, "h_fps");
     items.push_back({Say("fullscreen"),
                      {{Say("window"), 0}, {Say("fullscreen"), 1}},
                      [this] {
                          return (SDL_GetWindowFlags(game) & SDL_WINDOW_FULLSCREEN) ? 1 : 0;
                      },
                      [this](int v) { SetFullscreen(v != 0); }});
+    tag(TabDisplay, "h_fullscreen");
     items.push_back({Say("filter"),
                      {{"Bilinear", int(ScalingFilter::Bilinear)},
                       {"Bicubic", int(ScalingFilter::Bicubic)},
@@ -309,6 +436,7 @@ void Overlay::BuildItems() {
                       {"Area", int(ScalingFilter::Area)}},
                      [] { return int(values.scaling_filter.GetValue()); },
                      [](int v) { values.scaling_filter.SetValue(ScalingFilter(v)); }});
+    tag(TabDisplay, "h_filter");
     std::vector<std::pair<std::string, int>> sharp;
     for (int v = 0; v <= 200; v += 25) {
         sharp.emplace_back(fmt::format("{}%", v), v);
@@ -316,12 +444,14 @@ void Overlay::BuildItems() {
     items.push_back({Say("sharp"), sharp,
                      [] { return values.fsr_sharpening_slider.GetValue(); },
                      [](int v) { values.fsr_sharpening_slider.SetValue(v); }});
+    tag(TabDisplay, "h_sharp");
     items.push_back({Say("aa"),
                      {{Say("none"), int(AntiAliasing::None)},
                       {"FXAA", int(AntiAliasing::Fxaa)},
                       {"SMAA", int(AntiAliasing::Smaa)}},
                      [] { return int(values.anti_aliasing.GetValue()); },
                      [](int v) { values.anti_aliasing.SetValue(AntiAliasing(v)); }});
+    tag(TabDisplay, "h_aa");
     items.push_back({Say("aspect"),
                      {{"16:9", int(AspectRatio::R16_9)},
                       {"21:9", int(AspectRatio::R21_9)},
@@ -335,6 +465,7 @@ void Overlay::BuildItems() {
                              relayout();
                          }
                      }});
+    tag(TabDisplay, "h_aspect");
     items.push_back({Say("vsync"),
                      {{Say("off"), int(VSyncMode::Immediate)},
                       {"Mailbox", int(VSyncMode::Mailbox)},
@@ -342,6 +473,7 @@ void Overlay::BuildItems() {
                       {Say("relaxed"), int(VSyncMode::FifoRelaxed)}},
                      [] { return int(values.vsync_mode.GetValue()); },
                      [](int v) { values.vsync_mode.SetValue(VSyncMode(v)); }});
+    tag(TabDisplay, "h_vsync");
     items.push_back({Say("mode"),
                      {{Say("tv"), int(ConsoleMode::Docked)},
                       {Say("handheld"), int(ConsoleMode::Handheld)}},
@@ -352,12 +484,25 @@ void Overlay::BuildItems() {
                              system.GetAppletManager().OperationModeChanged();
                          }
                      }});
+    tag(TabDisplay, "h_mode");
     std::vector<std::pair<std::string, int>> volume;
     for (int v = 0; v <= 100; v += 10) {
         volume.emplace_back(fmt::format("{}%", v), v);
     }
     items.push_back({Say("volume"), volume, [] { return int(values.volume.GetValue()); },
                      [](int v) { values.volume.SetValue(static_cast<u8>(v)); }});
+    tag(TabAudio, "h_volume");
+    std::vector<std::pair<std::string, int>> sens;
+    for (const int v : {20, 35, 50, 65, 80, 100}) {
+        sens.emplace_back(fmt::format("{}%", v), v);
+    }
+    items.push_back({Say("mouse_sens"), sens,
+                     [] { return int(values.mouse_panning_x_sensitivity.GetValue()); },
+                     [](int v) {
+                         values.mouse_panning_x_sensitivity.SetValue(static_cast<u8>(v));
+                         values.mouse_panning_y_sensitivity.SetValue(static_cast<u8>(v));
+                     }});
+    tag(TabControls, "h_mouse_sens");
     items.push_back({Say("resolution"),
                      {{"0.5x (540p)", int(ResolutionSetup::Res1_2X)},
                       {"0.75x", int(ResolutionSetup::Res3_4X)},
@@ -370,6 +515,7 @@ void Overlay::BuildItems() {
                      [] { return int(values.resolution_setup.GetValue()); },
                      [](int v) { values.resolution_setup.SetValue(ResolutionSetup(v)); },
                      true});
+    tag(TabDisplay, "h_resolution");
     // What replaces Ocarina's own upscaler, read when the game starts. FSR 4 and DLSS are offered
     // by the launcher where the PC has them; here they stay listed when already chosen.
     std::vector<std::pair<std::string, int>> upscalers{{Say("game_own"), UpscalerGame},
@@ -382,6 +528,7 @@ void Overlay::BuildItems() {
     }
     items.push_back({Say("upscaler"), upscalers, [] { return int(CurrentUpscaler()); },
                      [](int v) { ApplyUpscaler(v); }, true});
+    tag(TabDisplay, "h_upscaler");
     items.push_back({Say("perf_pos"),
                      {{Say("left"), 0}, {Say("center"), 1}, {Say("right"), 2}},
                      [this] { return perf_position; },
@@ -391,6 +538,7 @@ void Overlay::BuildItems() {
                              PlaceCorner(perf.window);
                          }
                      }});
+    tag(TabPerf, "h_perf_pos");
     items.push_back({Say("framegen"),
                      {{Say("off"), 0}, {"2x", 1}},
                      [] { return values.frame_gen.GetValue() ? 1 : 0; },
@@ -398,6 +546,11 @@ void Overlay::BuildItems() {
                          values.frame_gen.SetValue(v != 0);
                          values.frame_gen_type.SetValue(FrameGenType::Fsr3);
                      }});
+    tag(TabPerf, "h_framegen");
+    // Display rows in the order players look for them.
+    std::stable_sort(items.begin(), items.end(), [](const Item& a, const Item& b) {
+        return a.tab < b.tab;
+    });
 }
 
 bool Overlay::HandleKey(int scancode, bool down) {
@@ -440,20 +593,32 @@ bool Overlay::HandleKey(int scancode, bool down) {
         case SDL_SCANCODE_ESCAPE:
             OpenMenu(false);
             break;
+        case SDL_SCANCODE_Q:
+        case SDL_SCANCODE_E:
+        case SDL_SCANCODE_TAB: {
+            tab_selected[std::size_t(tab)] = selected;
+            const int step = scancode == SDL_SCANCODE_Q ? 3 : 1;
+            tab = (tab + step) % 4;
+            selected = tab_selected[std::size_t(tab)];
+            break;
+        }
         case SDL_SCANCODE_UP:
-            selected = (selected + int(items.size()) - 1) % int(items.size());
+        case SDL_SCANCODE_DOWN: {
+            const int n = std::max<int>(1, int(TabRows().size()));
+            selected = (selected + (scancode == SDL_SCANCODE_UP ? n - 1 : 1)) % n;
             break;
-        case SDL_SCANCODE_DOWN:
-            selected = (selected + 1) % int(items.size());
-            break;
+        }
         case SDL_SCANCODE_LEFT:
-            Step(selected, -1);
-            break;
         case SDL_SCANCODE_RIGHT:
         case SDL_SCANCODE_RETURN:
-        case SDL_SCANCODE_SPACE:
-            Step(selected, +1);
+        case SDL_SCANCODE_SPACE: {
+            const auto rows = TabRows();
+            if (!rows.empty()) {
+                Step(rows[std::size_t(std::clamp(selected, 0, int(rows.size()) - 1))],
+                     scancode == SDL_SCANCODE_LEFT ? -1 : +1);
+            }
             break;
+        }
         default:
             break;
         }
@@ -539,6 +704,7 @@ void Overlay::SaveToLauncher() {
         }
     }
     data["perf_position"] = perf_position;
+    data["mouse_sens"] = int(values.mouse_panning_x_sensitivity.GetValue());
     data["resolution"] = int(values.resolution_setup.GetValue());
     data["filter"] = int(values.scaling_filter.GetValue());
     data["sharpness"] = values.fsr_sharpening_slider.GetValue();
@@ -570,11 +736,13 @@ void Overlay::OpenMenu(bool open) {
     menu_open = open;
     if (open) {
         BuildItems();  // fresh values
-        // 640 fits the header, ten rows of 46 and the key help; each further row adds 46.
-        const int height = 640 + (int(items.size()) - 10) * 46;
-        if (!menu.window && !MakePanel(menu, 620, height)) {
-            menu_open = false;
-            return;
+        // The menu covers the game window (followed in DrawMenu), the game faintly behind it.
+        if (!menu.window) {
+            if (!MakePanel(menu, 1280, 720)) {
+                menu_open = false;
+                return;
+            }
+            SDL_SetWindowOpacity(menu.window, 0.93f);
         }
         // The keyboard stays with the game window: its key events reach HandleKey.
         SDL_ShowWindow(menu.window);
@@ -840,21 +1008,21 @@ void Overlay::DrawPerf() {
         const Text& v = GetText(perf, fmt::format("VRAM {:.1f} / {:.0f} GB", perf_vram / GB,
                                                   perf_vram_total / GB),
                                 int(12 * s), false, false);
-        Put(perf, v, mx, my, perf_vram > 0.9 * perf_vram_total ? 0xEF5350u : 0xC3CCDAu);
+        Put(perf, v, mx, my, perf_vram > 0.9 * perf_vram_total ? 0xEF5350u : GoldLabel);
         mx += v.w + 12 * s;
     }
     if (perf_ram_total > 0) {
         const Text& m = GetText(perf, fmt::format("RAM {:.1f} / {:.0f} GB", perf_ram / GB,
                                                   perf_ram_total / GB),
                                 int(12 * s), false, false);
-        Put(perf, m, mx, my, perf_ram > 0.9 * perf_ram_total ? 0xEF5350u : 0xC3CCDAu);
+        Put(perf, m, mx, my, perf_ram > 0.9 * perf_ram_total ? 0xEF5350u : GoldLabel);
     }
     // Frame time graph: the last 60 half-second samples, 16.7 ms (60 FPS) as the guide line.
     const float gx = 14 * s, gy = 70 * s, gw = W - 28 * s, gh = H - 80 * s;
     Fill(r, gx, gy, gw, gh, 0x111C33);
     const float scale_ms = 50.0f;
     const float guide = gy + gh - gh * (16.7f / scale_ms);
-    Fill(r, gx, guide, gw, 1 * s, 0x2A3A5C);
+    Fill(r, gx, guide, gw, 1 * s, GoldLine);
     const std::size_t n = std::min(perf_count, perf_ms.size());
     const float bar = gw / float(perf_ms.size());
     for (std::size_t i = 0; i < n; ++i) {
@@ -877,79 +1045,206 @@ void Overlay::DrawNotice() {
     SDL_Renderer* r = notice.renderer;
     Fill(r, 0, 0, float(pw), float(ph), 0x0B1424);
     Fill(r, 0, 0, 4 * s, float(ph), Gold);
-    Fill(r, 0, float(ph) - 1, float(pw), 1, 0x2A3A5C);
+    Fill(r, 0, float(ph) - 1, float(pw), 1, GoldLine);
     const Text& t = GetText(notice, notice_text, int(22 * s), true, false);
     Put(notice, t, (float(pw) - t.w) / 2, (float(ph) - t.h) / 2, Gold);
     SDL_RenderPresent(r);
 }
 
 void Overlay::DrawMenu() {
-    int w = 0, h = 0;
-    SDL_GetWindowSize(menu.window, &w, &h);
-    PlaceOver(menu.window, w, h, false);
+    // Over the whole game window, like Hookshot's menu: a parchment tab bar, rows in dark boxes
+    // with their value between arrows, the chosen value in a gold box, a help panel on the right
+    // and the keys at the bottom. All text is gold.
+    int gx = 0, gy = 0, gw = 0, gh = 0, mw = 0, mh = 0;
+    SDL_GetWindowPosition(game, &gx, &gy);
+    SDL_GetWindowSize(game, &gw, &gh);
+    SDL_GetWindowSize(menu.window, &mw, &mh);
+    if (gw > 0 && gh > 0 && (mw != gw || mh != gh)) {
+        SDL_SetWindowSize(menu.window, gw, gh);
+    }
+    int cx = 0, cy = 0;
+    SDL_GetWindowPosition(menu.window, &cx, &cy);
+    if (cx != gx || cy != gy) {
+        SDL_SetWindowPosition(menu.window, gx, gy);
+    }
     int pw = 0, ph = 0;
     SDL_GetCurrentRenderOutputSize(menu.renderer, &pw, &ph);
-    const float s = float(pw) / 620.0f;  // the width is fixed; the height follows the rows
-    SDL_Renderer* r = menu.renderer;
     const float W = float(pw), H = float(ph);
+    // Laid out for 1280x720 and scaled to the window.
+    const float s = std::max(0.5f, std::min(W / 1280.0f, H / 720.0f));
+    SDL_Renderer* r = menu.renderer;
 
-    Fill(r, 0, 0, W, H, 0x0B1222);
-    Fill(r, 0, 0, W, 1 * s, 0x3A4E78);
-    Fill(r, 0, H - 1 * s, W, 1 * s, 0x3A4E78);
-    Fill(r, 0, 0, 1 * s, H, 0x3A4E78);
-    Fill(r, W - 1 * s, 0, 1 * s, H, 0x3A4E78);
+    constexpr unsigned Night = 0x120C08;      // behind everything
+    constexpr unsigned Parchment = 0xE8DCC0;  // tab bar
+    constexpr unsigned ParchLine = 0xB9A57E;
+    constexpr unsigned Ink = 0x3B2A1A;        // text on parchment
+    constexpr unsigned Brown = 0x4A2F18;      // active tab
+    constexpr unsigned RowBox = 0x2A1C10;
+    constexpr unsigned ValueBox = 0x1C130B;
+    constexpr unsigned GoldText = 0xE9C878;   // labels and values
+    constexpr unsigned GoldBright = 0xFBE3A0;
+    constexpr unsigned GoldBox = 0xE3A13A;    // the chosen value
+    constexpr unsigned GoldEdge = 0xFFE09A;
+    constexpr unsigned Dim = 0x9C8558;
 
-    // Header.
-    const float pad = 26 * s;
-    if (shield) {
-        const SDL_FRect dst{pad, 22 * s, 40 * s, 40 * s};
-        SDL_RenderTexture(r, shield, nullptr, &dst);
-    }
-    const Text& title = GetText(menu, Say("menu"), int(24 * s), false, true);
-    Put(menu, title, pad + 52 * s, 22 * s + (40 * s - title.h) / 2, Gold);
-    const Text& live = GetText(menu, Say("live"), int(13 * s), false, false);
-    Put(menu, live, W - pad - live.w, 22 * s + (40 * s - live.h) / 2, Muted);
-    Fill(r, pad, 76 * s, W - 2 * pad, 1 * s, 0x2A3A5C);
+    Fill(r, 0, 0, W, H, Night);
 
-    // Rows.
-    const float row_h = 46 * s;
-    float y = 88 * s;
-    for (std::size_t i = 0; i < items.size(); ++i) {
-        const Item& item = items[i];
-        const bool on = int(i) == selected;
+    // Tab bar.
+    const float bar_h = 50 * s;
+    Fill(r, 0, 0, W, bar_h, Parchment);
+    Fill(r, 0, bar_h - 2 * s, W, 2 * s, ParchLine);
+    const Text& version = GetText(menu, ZootBaseTitle(), int(13 * s), false, false);
+    Put(menu, version, 18 * s, (bar_h - version.h) / 2, 0x6B5638);
+    const std::array<std::string, 4> tab_names{Say("tab_display"), Say("tab_perf"),
+                                                Say("tab_audio"), Say("tab_controls")};
+    const auto badge = [&](const std::string& key, float x, float y, float size, unsigned bg,
+                           unsigned fg) {
+        Fill(r, x, y, size, size, bg);
+        const Text& t = GetText(menu, key, int(size * 0.62f), true, false);
+        Put(menu, t, x + (size - t.w) / 2, y + (size - t.h) / 2, fg);
+        return size;
+    };
+    float tx = std::max(18 * s + version.w + 40 * s, W * 0.24f);
+    const float bsize = 22 * s;
+    tx += badge("Q", tx, (bar_h - bsize) / 2, bsize, RowBox, GoldBright) + 18 * s;
+    for (int i = 0; i < 4; ++i) {
+        const bool on = i == tab;
+        const Text& t = GetText(menu, tab_names[std::size_t(i)], int(18 * s), true, false);
+        const float tw = t.w + 44 * s;
         if (on) {
-            Fill(r, pad - 10 * s, y, W - 2 * pad + 20 * s, row_h, 0x17284A);
-            Fill(r, pad - 10 * s, y + 10 * s, 3 * s, row_h - 20 * s, Gold);
+            Fill(r, tx, 0, tw, bar_h - 2 * s, Brown);
         }
-        const Text& label = GetText(menu, item.label, int(16 * s), on, false);
-        Put(menu, label, pad + 4 * s, y + (row_h - label.h) / 2, on ? White : 0xC3CCDA);
+        Put(menu, t, tx + 22 * s, (bar_h - t.h) / 2, on ? GoldBright : Ink);
+        tx += tw;
+    }
+    badge("E", tx + 18 * s, (bar_h - bsize) / 2, bsize, RowBox, GoldBright);
+
+    // Rows of the current tab.
+    const auto rows = TabRows();
+    selected = rows.empty() ? 0 : std::clamp(selected, 0, int(rows.size()) - 1);
+    const float left = 60 * s, label_w = 330 * s, value_w = 280 * s, gap = 8 * s;
+    const float row_h = 40 * s, row_gap = 7 * s;
+    float y = bar_h + 26 * s;
+    for (std::size_t n = 0; n < rows.size(); ++n) {
+        const Item& item = items[std::size_t(rows[n])];
+        const bool on = int(n) == selected;
+        Fill(r, left, y, label_w, row_h, RowBox, 0.92f);
+        if (on) {
+            Fill(r, left, y, 4 * s, row_h, GoldBox);
+        }
+        const Text& label = GetText(menu, item.label, int(17 * s), on, false);
+        Put(menu, label, left + 16 * s, y + (row_h - label.h) / 2, on ? GoldBright : GoldText);
+
+        const float vx = left + label_w + gap;
         const int now = item.get();
-        std::string value = "?";
-        for (const auto& c : item.choices) {
-            if (c.second == now) {
-                value = c.first;
+        if (item.choices.size() == 2) {
+            // Two choices: both shown, the current one lit.
+            const float half = value_w / 2;
+            for (std::size_t c = 0; c < 2; ++c) {
+                const bool lit = item.choices[c].second == now;
+                const float x = vx + half * float(c);
+                Fill(r, x, y, half - (c == 0 ? 2 * s : 0), row_h,
+                     lit ? (on ? GoldBox : 0x5A4228) : ValueBox, 0.95f);
+                const Text& t = GetText(menu, item.choices[c].first, int(16 * s), lit, false);
+                Put(menu, t, x + (half - t.w) / 2, y + (row_h - t.h) / 2,
+                    lit ? (on ? RowBox : GoldBright) : Dim);
+            }
+            if (on) {
+                Fill(r, vx - 2 * s, y - 2 * s, value_w + 4 * s, 2 * s, GoldEdge);
+                Fill(r, vx - 2 * s, y + row_h, value_w + 4 * s, 2 * s, GoldEdge);
+            }
+        } else {
+            std::string value = "?";
+            for (const auto& c : item.choices) {
+                if (c.second == now) {
+                    value = c.first;
+                }
+            }
+            if (on) {
+                Fill(r, vx - 2 * s, y - 2 * s, value_w + 4 * s, row_h + 4 * s, GoldEdge);
+            }
+            Fill(r, vx, y, value_w, row_h, on ? GoldBox : ValueBox, 0.95f);
+            const unsigned ink = on ? RowBox : GoldText;
+            const Text& val = GetText(menu, value, int(16 * s), true, false);
+            Put(menu, val, vx + (value_w - val.w) / 2, y + (row_h - val.h) / 2, ink);
+            const Text& la = GetText(menu, "◀", int(11 * s), false, false);
+            const Text& ra = GetText(menu, "▶", int(11 * s), false, false);
+            Put(menu, la, vx + 12 * s, y + (row_h - la.h) / 2, on ? RowBox : Dim);
+            Put(menu, ra, vx + value_w - 12 * s - ra.w, y + (row_h - ra.h) / 2, on ? RowBox : Dim);
+        }
+        y += row_h + row_gap;
+    }
+
+    // Help for the chosen row.
+    if (!rows.empty()) {
+        const Item& item = items[std::size_t(rows[std::size_t(selected)])];
+        const float hx = left + label_w + gap + value_w + 50 * s;
+        const float hw = std::max(200 * s, W - hx - 50 * s);
+        const float hy = bar_h + 26 * s;
+        const float pad = 18 * s;
+        // Word wrap the help to the panel's width.
+        std::vector<std::string> lines;
+        {
+            std::string line, word;
+            std::istringstream words{item.help};
+            const float max_w = hw - 2 * pad;
+            while (words >> word) {
+                const std::string candidate = line.empty() ? word : line + " " + word;
+                if (!line.empty() &&
+                    GetText(menu, candidate, int(15 * s), false, false).w > max_w) {
+                    lines.push_back(line);
+                    line = word;
+                } else {
+                    line = candidate;
+                }
+            }
+            if (!line.empty()) {
+                lines.push_back(line);
             }
         }
-        const Text& val = GetText(menu, value, int(16 * s), true, false);
-        const Text& left = GetText(menu, "◀", int(12 * s), false, false);
-        const Text& right = GetText(menu, "▶", int(12 * s), false, false);
-        float vx = W - pad - right.w;
-        Put(menu, right, vx, y + (row_h - right.h) / 2, on ? Gold : 0x5A6884);
-        vx -= 14 * s + val.w;
-        Put(menu, val, vx, y + (row_h - val.h) / 2, on ? Gold : White);
-        vx -= 14 * s + left.w;
-        Put(menu, left, vx, y + (row_h - left.h) / 2, on ? Gold : 0x5A6884);
-        if (item.next_start) {
-            const Text& note = GetText(menu, "(" + Say("next") + ")", int(12 * s), false, false);
-            Put(menu, note, vx - 12 * s - note.w, y + (row_h - note.h) / 2, Muted);
+        const Text& title = GetText(menu, item.label, int(19 * s), true, false);
+        const float line_h = 22 * s;
+        const float note_h = item.next_start ? 44 * s : 0;
+        const float hh = pad + title.h + 10 * s + float(lines.size()) * line_h + note_h + pad;
+        Fill(r, hx, hy, hw, hh, RowBox, 0.94f);
+        Put(menu, title, hx + pad, hy + pad, GoldBright);
+        float ly = hy + pad + title.h + 10 * s;
+        for (const auto& l : lines) {
+            Put(menu, GetText(menu, l, int(15 * s), false, false), hx + pad, ly, GoldText);
+            ly += line_h;
         }
-        y += row_h;
+        if (item.next_start) {
+            Fill(r, hx + pad, ly + 10 * s, hw - 2 * pad, 1 * s, 0x5A4630);
+            const Text& note =
+                GetText(menu, "◆  " + Say("restart_note"), int(14 * s), true, false);
+            Put(menu, note, hx + pad, ly + 20 * s, GoldBox);
+        }
     }
 
-    // Footer.
-    Fill(r, pad, H - 58 * s, W - 2 * pad, 1 * s, 0x2A3A5C);
-    const Text& keys = GetText(menu, Say("keys"), int(13 * s), false, false);
-    Put(menu, keys, (W - keys.w) / 2, H - 42 * s, Muted);
+    // Keys, bottom right.
+    {
+        const float ky = H - 44 * s;
+        const float ksize = 24 * s;
+        float kx = W - 40 * s;
+        const auto group = [&](const std::string& label, std::initializer_list<const char*> keys) {
+            for (auto it = std::rbegin(keys); it != std::rend(keys); ++it) {
+                const Text& t = GetText(menu, *it, int(13 * s), true, false);
+                const float bw = std::max(ksize, t.w + 10 * s);
+                kx -= bw;
+                Fill(r, kx, ky, bw, ksize, Parchment);
+                Put(menu, t, kx + (bw - t.w) / 2, ky + (ksize - t.h) / 2, Ink);
+                kx -= 5 * s;
+            }
+            const Text& l = GetText(menu, label, int(15 * s), false, false);
+            kx -= l.w + 4 * s;
+            Put(menu, l, kx, ky + (ksize - l.h) / 2, GoldText);
+            kx -= 26 * s;
+        };
+        group(Say("close"), {"Esc"});
+        group(Say("tabs"), {"Q", "E"});
+        group(Say("change"), {"◀", "▶"});
+        group(Say("choose"), {"▲", "▼"});
+    }
     SDL_RenderPresent(r);
 }
 

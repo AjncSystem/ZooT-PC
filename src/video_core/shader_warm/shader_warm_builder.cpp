@@ -632,6 +632,28 @@ Result BuildWarmFilesWith(Core::System& system, const fs::path& game_path, u64 t
         std::vector<u8> env;
     };
     std::vector<HeldVertex> held_vertices;
+    // ZooT-PC pipeline state list: the code of the programs its entries name, kept as they are
+    // converted (by stage hash), to rebuild each entry's envs at the end.
+    const auto list_path = StateListPath();
+    const std::vector<StateEntry> state_list = ReadStateList(list_path);
+    std::unordered_set<u64> wanted_vertex, wanted_fragment;
+    for (const StateEntry& entry : state_list) {
+        u64 hash{};
+        std::memcpy(&hash, entry.key.data() + 1 * 8, sizeof(hash));
+        wanted_vertex.insert(hash);
+        std::memcpy(&hash, entry.key.data() + 5 * 8, sizeof(hash));
+        wanted_fragment.insert(hash);
+    }
+    std::unordered_map<u64, std::vector<u8>> vertex_codes;
+    std::unordered_map<u64, std::vector<u8>> fragment_codes;
+    const auto keep_code = [&](u32 stage, u64 hash, std::span<const u8> env) {
+        auto& wanted = stage == 4 ? wanted_fragment : wanted_vertex;
+        auto& codes = stage == 4 ? fragment_codes : vertex_codes;
+        if (wanted.contains(hash) && !codes.contains(hash)) {
+            const auto code = EnvCode(env);
+            codes.emplace(hash, std::vector<u8>(code.begin(), code.end()));
+        }
+    };
     size_t archive_errors = 0;
     size_t member_errors = 0;
     size_t seq = 0;
@@ -664,6 +686,7 @@ Result BuildWarmFilesWith(Core::System& system, const fs::path& game_path, u64 t
         program.built = true;
         program.hash = r.hash;
         program.environment = Hash128(r.bytes);
+        keep_code(program.stage, r.hash, r.bytes);
         if (program.stage == 4) {
             if (!fragment_hashes.insert(program.environment).second) {
                 return; // same key as an earlier entry
@@ -877,6 +900,42 @@ Result BuildWarmFilesWith(Core::System& system, const fs::path& game_path, u64 t
         held.env = {};
     }
     result.vertex_programs = vertex_keys.size();
+    // ZooT-PC pipeline state list: whole pipelines as the game asked for them (draw state and
+    // the values each program's translation read), with the code from these game files, as a
+    // runtime cache record (2 envs, then the key). Entries whose programs this copy lacks, or
+    // whose code differs in size, are left out.
+    result.state_keys = state_list.size();
+    for (const StateEntry& entry : state_list) {
+        u64 vertex_hash{}, fragment_hash{};
+        std::memcpy(&vertex_hash, entry.key.data() + 1 * 8, sizeof(u64));
+        std::memcpy(&fragment_hash, entry.key.data() + 5 * 8, sizeof(u64));
+        const auto vertex = vertex_codes.find(vertex_hash);
+        const auto fragment = fragment_codes.find(fragment_hash);
+        if (vertex == vertex_codes.end() || fragment == fragment_codes.end()) {
+            continue;
+        }
+        const auto vertex_env = EnvWithCode(entry.env_states[0], vertex->second);
+        const auto fragment_env = EnvWithCode(entry.env_states[1], fragment->second);
+        if (vertex_env.empty() || fragment_env.empty()) {
+            continue;
+        }
+        Write(graphics_out, u32{2});
+        graphics_out.write(reinterpret_cast<const char*>(vertex_env.data()),
+                           static_cast<std::streamsize>(vertex_env.size()));
+        graphics_out.write(reinterpret_cast<const char*>(fragment_env.data()),
+                           static_cast<std::streamsize>(fragment_env.size()));
+        graphics_out.write(reinterpret_cast<const char*>(entry.key.data()),
+                           static_cast<std::streamsize>(entry.key.size()));
+        ++result.state_entries;
+    }
+    if (!state_list.empty()) {
+        LOG_INFO(Render_Vulkan,
+                 "Shader precache build: pipeline state list {}: {} of {} pipelines built from "
+                 "these game files",
+                 Common::FS::PathToUTF8String(list_path), result.state_entries, state_list.size());
+    }
+    vertex_codes.clear();
+    fragment_codes.clear();
     compute_out.close();
     graphics_out.close();
     if (!compute_out || !graphics_out) {
@@ -915,7 +974,8 @@ Result BuildWarmFilesWith(Core::System& system, const fs::path& game_path, u64 t
         return fail("Cannot replace " + Common::FS::PathToUTF8String(graphics_path));
     }
     WriteWarmCount(compute_path, result.compute_programs);
-    WriteWarmCount(graphics_path, result.vertex_programs + result.fragment_programs);
+    WriteWarmCount(graphics_path,
+                   result.vertex_programs + result.fragment_programs + result.state_entries);
     report(StageWriting, patches.size(), patches.size());
     result.ok = true;
     LOG_INFO(Render_Vulkan,

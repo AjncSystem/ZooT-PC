@@ -615,6 +615,65 @@ T = {
         'ru': 'Применяются при запуске игры. FSR 3.1 и DLSS дают более чёткую картинку; для '
               'большего FPS снизьте и разрешение. Генерация кадров поднимает частоту до частоты '
               'монитора.'},
+    'Teclado e mouse': {'en': 'Keyboard and mouse', 'es': 'Teclado y ratón',
+                        'fr': 'Clavier et souris', 'ja': 'キーボードとマウス',
+                        'ko': '키보드와 마우스', 'ru': 'Клавиатура и мышь'},
+    'Usar teclado e mouse': {'en': 'Use keyboard and mouse', 'es': 'Usar teclado y ratón',
+                             'fr': 'Utiliser clavier et souris', 'ja': 'キーボードとマウスを使う',
+                             'ko': '키보드와 마우스 사용', 'ru': 'Клавиатура и мышь'},
+    'WASD anda (C devagar), o mouse move a câmera, clique esquerdo = espada (B), clique direito '
+    '= mirar (ZL), Espaço = ação (A).': {
+        'en': 'WASD walks (C slowly), the mouse turns the camera, left click = sword (B), right '
+              'click = target (ZL), Space = action (A).',
+        'es': 'WASD camina (C despacio), el ratón mueve la cámara, clic izquierdo = espada (B), '
+              'clic derecho = fijar (ZL), Espacio = acción (A).',
+        'fr': 'ZQSD/WASD pour marcher (C lentement), la souris tourne la caméra, clic gauche = '
+              'épée (B), clic droit = cibler (ZL), Espace = action (A).',
+        'ja': 'WASD で移動 (C でゆっくり)、マウスでカメラ、左クリック = 剣 (B)、右クリック = 注目 '
+              '(ZL)、Space = アクション (A)。',
+        'ko': 'WASD 이동 (C 천천히), 마우스로 카메라, 왼쪽 클릭 = 검 (B), 오른쪽 클릭 = 주목 '
+              '(ZL), Space = 액션 (A).',
+        'ru': 'WASD — ходьба (C — медленно), мышь — камера, левый клик — меч (B), правый — '
+              'прицел (ZL), Пробел — действие (A).'},
+    'Mouse move a câmera': {'en': 'Mouse turns the camera', 'es': 'El ratón mueve la cámara',
+                            'fr': 'La souris tourne la caméra', 'ja': 'マウスでカメラを動かす',
+                            'ko': '마우스로 카메라 이동', 'ru': 'Мышь управляет камерой'},
+    'Sensibilidade do mouse': {'en': 'Mouse sensitivity', 'es': 'Sensibilidad del ratón',
+                               'fr': 'Sensibilité de la souris', 'ja': 'マウス感度',
+                               'ko': '마우스 감도', 'ru': 'Чувствительность мыши'},
+    'Inverter o eixo vertical': {'en': 'Invert vertical axis', 'es': 'Invertir eje vertical',
+                                 'fr': 'Inverser l’axe vertical', 'ja': '上下を反転',
+                                 'ko': '세로축 반전', 'ru': 'Инвертировать по вертикали'},
+    'No jogo, clique na janela para prender o mouse; Esc ou F1 soltam.': {
+        'en': 'In game, click the window to hold the mouse; Esc or F1 let it go.',
+        'es': 'En el juego, haz clic en la ventana para capturar el ratón; Esc o F1 lo sueltan.',
+        'fr': 'En jeu, cliquez dans la fenêtre pour capturer la souris ; Échap ou F1 la libèrent.',
+        'ja': 'ゲーム中はウィンドウをクリックするとマウスを固定、Esc か F1 で解除。',
+        'ko': '게임 중 창을 클릭하면 마우스가 고정되고, Esc나 F1로 해제됩니다.',
+        'ru': 'В игре щёлкните по окну, чтобы захватить мышь; Esc или F1 отпускают её.'},
+    'Teclado e mouse prontos.': {'en': 'Keyboard and mouse ready.',
+                                 'es': 'Teclado y ratón listos.', 'fr': 'Clavier et souris prêts.',
+                                 'ja': 'キーボードとマウスの準備完了。', 'ko': '키보드와 마우스 준비 완료.',
+                                 'ru': 'Клавиатура и мышь готовы.'},
+    'Aperte a tecla ou clique o botão do mouse para {name}': {
+        'en': 'Press the key or click the mouse button for {name}',
+        'es': 'Pulsa la tecla o el botón del ratón para {name}',
+        'fr': 'Appuyez sur la touche ou le bouton de la souris pour {name}',
+        'ja': '{name} に使うキーかマウスボタンを押してください',
+        'ko': '{name}에 쓸 키나 마우스 버튼을 누르세요',
+        'ru': 'Нажмите клавишу или кнопку мыши для {name}'},
+    'Mouse (câmera)': {'en': 'Mouse (camera)', 'es': 'Ratón (cámara)', 'fr': 'Souris (caméra)',
+                       'ja': 'マウス (カメラ)', 'ko': '마우스 (카메라)', 'ru': 'Мышь (камера)'},
+    'Mouse esquerdo': {'en': 'Left mouse', 'es': 'Clic izquierdo', 'fr': 'Clic gauche',
+                       'ja': '左クリック', 'ko': '왼쪽 클릭', 'ru': 'Левая кнопка мыши'},
+    'Mouse direito': {'en': 'Right mouse', 'es': 'Clic derecho', 'fr': 'Clic droit',
+                      'ja': '右クリック', 'ko': '오른쪽 클릭', 'ru': 'Правая кнопка мыши'},
+    'Mouse meio': {'en': 'Middle mouse', 'es': 'Clic central', 'fr': 'Clic du milieu',
+                   'ja': '中クリック', 'ko': '가운데 클릭', 'ru': 'Средняя кнопка мыши'},
+    'Mouse lateral 1': {'en': 'Mouse side 1', 'es': 'Ratón lateral 1', 'fr': 'Souris latéral 1',
+                        'ja': 'マウスサイド 1', 'ko': '마우스 측면 1', 'ru': 'Боковая кнопка 1'},
+    'Mouse lateral 2': {'en': 'Mouse side 2', 'es': 'Ratón lateral 2', 'fr': 'Souris latéral 2',
+                        'ja': 'マウスサイド 2', 'ko': '마우스 측면 2', 'ru': 'Боковая кнопка 2'},
 }
 
 HELP = {

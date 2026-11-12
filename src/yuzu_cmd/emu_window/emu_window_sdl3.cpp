@@ -34,6 +34,11 @@
 // ZooT-PC window title, as the SotC-PC port does: the port and its version, the game (read from
 // the player's copy) and its version, the frame rate and how long the game has been open.
 // ZOOT_PORT_VERSION (set by the launcher) overrides the built-in version.
+/// The mouse camera (mouse panning) is on and no real mouse is emulated.
+static bool MousePanning() {
+    return Settings::values.mouse_panning.GetValue() && !Settings::values.mouse_enabled.GetValue();
+}
+
 std::string ZootBaseTitle() {
     const char* const port = std::getenv("ZOOT_PORT_VERSION");
     return fmt::format("ZooT v{}", port && *port ? port : "0.13");
@@ -72,6 +77,11 @@ EmuWindow_SDL3::EmuWindow_SDL3(InputCommon::InputSubsystem* input_subsystem_, Co
     : input_subsystem{input_subsystem_}, system{system_} {
     UpdateCurrentFramebufferLayout(Layout::ScreenUndocked::Width, Layout::ScreenUndocked::Height);
     input_subsystem->Initialize();
+    // ZooT-PC: the launcher's "mouse moves the camera" (mouse_panning is not kept in the ini).
+    if (const char* camera = std::getenv("ZOOT_MOUSE_CAMERA"); camera && camera[0] == '1') {
+        Settings::values.mouse_panning.SetValue(true);
+        Settings::values.mouse_enabled.SetValue(false);
+    }
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD)) {
         LOG_CRITICAL(Frontend, "Failed to initialize SDL3: {}, Exiting...", SDL_GetError());
         exit(1);
@@ -102,7 +112,8 @@ EmuWindow_SDL3::EmuWindow_SDL3(InputCommon::InputSubsystem* input_subsystem_, Co
         if (auto* const mouse = this_->input_subsystem->GetMouse()) {
             mouse->NotifyChanged();
         }
-        return 100;
+        // The mouse camera decays its stick on every update: 5 ms, as the Qt frontend does.
+        return MousePanning() ? 5 : 100;
     }, this);
 }
 
@@ -130,6 +141,29 @@ InputCommon::MouseButton EmuWindow_SDL3::SDLButtonToMouseButton(u32 button) cons
     default:
         return InputCommon::MouseButton::Undefined;
     }
+}
+
+void EmuWindow_SDL3::OnMousePan(float xrel, float yrel) {
+    zoot_pan_rest_x += xrel;
+    zoot_pan_rest_y += yrel;
+    const int dx = int(zoot_pan_rest_x);
+    const int dy = int(zoot_pan_rest_y);
+    zoot_pan_rest_x -= float(dx);
+    zoot_pan_rest_y -= float(dy);
+    if (dx != 0 || dy != 0) {
+        // Mouse::Move takes the cursor and the point it is re-centered on: their difference is
+        // the movement.
+        input_subsystem->GetMouse()->Move(dx, dy, 0, 0);
+    }
+}
+
+void EmuWindow_SDL3::ZootHoldMouse(bool hold) {
+    if (!render_window || SDL_GetWindowRelativeMouseMode(render_window) == hold) {
+        return;
+    }
+    SDL_SetWindowRelativeMouseMode(render_window, hold);
+    zoot_pan_rest_x = zoot_pan_rest_y = 0.0f;
+    LOG_INFO(Frontend, "ZooT: mouse {}", hold ? "held for the camera" : "let go");
 }
 
 /// @brief Translates pixel position to float position
@@ -197,6 +231,10 @@ void EmuWindow_SDL3::OnKeyEvent(int key, u8 state) {
                      static_cast<unsigned long long>(Core::g_nx2_present_count.load()),
                      state != 0 ? "" : "-", key);
         std::fflush(record);
+    }
+    // Esc and F1 let the held mouse go (the menu and the desktop need the cursor).
+    if (state != 0 && (key == SDL_SCANCODE_ESCAPE || key == SDL_SCANCODE_F1)) {
+        ZootHoldMouse(false);
     }
     // ZooT-PC hotkeys and the F1 menu see the key first.
     if (!zoot_overlay && render_window) {
@@ -291,6 +329,9 @@ void EmuWindow_SDL3::Fullscreen() {
 }
 
 void EmuWindow_SDL3::OnEvent(SDL_Event& event) {
+    if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
+        ZootHoldMouse(false);
+    }
     if (SdlWindowState::NeedsUpdate(event.type)) {
         return OnResize();
     }
@@ -309,14 +350,32 @@ void EmuWindow_SDL3::OnEvent(SDL_Event& event) {
         return OnKeyEvent(int(event.key.scancode), event.key.down ? 1 : 0);
     case SDL_EVENT_MOUSE_MOTION:
         // ignore if it came from touch
-        if (event.button.which != SDL_TOUCH_MOUSEID)
-            OnMouseMotion(event.motion.x, event.motion.y);
+        if (event.motion.which == SDL_TOUCH_MOUSEID) {
+            return;
+        }
+        if (MousePanning()) {
+            // Only while the mouse is held: a free cursor passing over the window is no input.
+            if (SDL_GetWindowRelativeMouseMode(render_window)) {
+                OnMousePan(event.motion.xrel, event.motion.yrel);
+            }
+            return;
+        }
+        OnMouseMotion(event.motion.x, event.motion.y);
         return;
     case SDL_EVENT_MOUSE_BUTTON_DOWN:
     case SDL_EVENT_MOUSE_BUTTON_UP:
         // ignore if it came from touch
-        if (event.button.which != SDL_TOUCH_MOUSEID)
-            OnMouseButton(event.button.button, event.button.down ? 1 : 0, s32(event.button.x), s32(event.button.y));
+        if (event.button.which == SDL_TOUCH_MOUSEID) {
+            return;
+        }
+        // Mouse camera: the first click only holds the mouse in the window.
+        if (MousePanning() && !SDL_GetWindowRelativeMouseMode(render_window)) {
+            if (event.button.down) {
+                ZootHoldMouse(true);
+            }
+            return;
+        }
+        OnMouseButton(event.button.button, event.button.down ? 1 : 0, s32(event.button.x), s32(event.button.y));
         return;
     case SDL_EVENT_FINGER_DOWN:
         return OnFingerDown(event.tfinger.x, event.tfinger.y, std::size_t(event.tfinger.touchID));

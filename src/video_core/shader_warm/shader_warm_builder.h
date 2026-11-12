@@ -164,6 +164,8 @@ struct Result {
     size_t compute_programs{};   ///< Entries written to the precache file
     size_t vertex_programs{};    ///< Vertex entries written to the graphics precache file
     size_t fragment_programs{};  ///< Fragment entries written to the graphics precache file
+    size_t state_entries{};      ///< ZooT-PC pipeline state list keys written (both programs found)
+    size_t state_keys{};         ///< Keys in the pipeline state list
     size_t skipped{};            ///< Programs that failed to extract or convert
 };
 

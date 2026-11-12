@@ -7,6 +7,7 @@
 #include <unordered_set>
 
 #include "common/cityhash.h"
+#include "common/fs/path_util.h"
 #include "shader_recompiler/frontend/ampere/instruction.h"
 #include "shader_recompiler/frontend/ampere/lower_to_maxwell.h"
 #include "shader_recompiler/frontend/ampere/program_capture.h"
@@ -172,7 +173,234 @@ bool ReadPipelineRecord(std::span<const u8> bytes, size_t& cur,
     return true;
 }
 
+struct EnvSpan {
+    u32 stage;
+    size_t begin;
+    size_t end;
+};
+
+/// The envs and the key of the record at `cur` (see ReadPipelineRecord), moved past it.
+bool ReadRecordEnvs(std::span<const u8> bytes, size_t& cur, std::vector<EnvSpan>& envs,
+                    const u8*& key) {
+    const size_t size = bytes.size();
+    envs.clear();
+    if (cur + 4 > size) {
+        return false;
+    }
+    const u32 count = Get<u32>(bytes, cur);
+    cur += 4;
+    if (count == 0 || count > 8) {
+        return false;
+    }
+    for (u32 i = 0; i < count; ++i) {
+        if (cur + EnvHeaderSize > size) {
+            return false;
+        }
+        std::array<u64, 6> counts;
+        std::memcpy(counts.data(), bytes.data() + cur, sizeof(counts));
+        const u32 stage = Get<u32>(bytes, cur + 48 + 6 * 4);
+        const u64 body = counts[0] + counts[1] * 8 + counts[2] * 8 + counts[3] * 12 +
+                         counts[4] * 9 + counts[5] * 12 + TailSize(stage);
+        if (body > size - cur - EnvHeaderSize) {
+            return false;
+        }
+        const size_t begin = cur;
+        cur += EnvHeaderSize + static_cast<size_t>(body);
+        envs.push_back({stage, begin, cur});
+    }
+    const size_t key_size = envs[0].stage == ComputeStage ? 24 : GraphicsKeySize;
+    if (key_size > size - cur) {
+        return false;
+    }
+    key = envs[0].stage == ComputeStage ? nullptr : bytes.data() + cur;
+    cur += key_size;
+    return true;
+}
+
+/// A vertex (slot 1) + fragment (slot 5) key and nothing else.
+bool IsVertexFragmentKey(const u8* key, const std::vector<EnvSpan>& envs) {
+    if (key == nullptr || envs.size() != 2 || envs[0].stage != 0 || envs[1].stage != 4) {
+        return false;
+    }
+    std::array<u64, 6> hashes;
+    std::memcpy(hashes.data(), key, sizeof(hashes));
+    return hashes[0] == 0 && hashes[1] != 0 && hashes[2] == 0 && hashes[3] == 0 &&
+           hashes[4] == 0 && hashes[5] != 0;
+}
+
+/// An env record without its code: the header, then what follows the code.
+std::vector<u8> EnvState(std::span<const u8> env) {
+    const u64 code_size = Get<u64>(env, 0);
+    std::vector<u8> out(env.begin(), env.begin() + EnvHeaderSize);
+    out.insert(out.end(), env.begin() + EnvHeaderSize + static_cast<size_t>(code_size), env.end());
+    return out;
+}
+
+u128 EntryHash(const StateEntry& entry) {
+    std::vector<u8> all(entry.key.begin(), entry.key.end());
+    for (const auto& state : entry.env_states) {
+        all.insert(all.end(), state.begin(), state.end());
+    }
+    return Hash128(all);
+}
+
+constexpr std::array<char, 8> StateListMagic{'Z', 'O', 'O', 'T', 'P', 'S', 'T', '2'};
+
 } // Anonymous namespace
+
+std::filesystem::path StateListPath() {
+    return Common::FS::GetExeDirectory() / "zoot-pipeline-states.bin";
+}
+
+std::vector<StateEntry> ReadRuntimeStateEntries(
+    const std::vector<std::filesystem::path>& caches) {
+    std::vector<StateEntry> entries;
+    std::unordered_set<u128, U128Hasher> seen;
+    std::vector<EnvSpan> envs;
+    const auto add = [&](std::span<const u8> bytes, const u8* key) {
+        StateEntry entry;
+        std::memcpy(entry.key.data(), key, entry.key.size());
+        for (size_t i = 0; i < 2; ++i) {
+            entry.env_states[i] = EnvState(bytes.subspan(envs[i].begin, envs[i].end - envs[i].begin));
+        }
+        if (seen.insert(EntryHash(entry)).second) {
+            entries.push_back(std::move(entry));
+        }
+    };
+    for (const auto& path : caches) {
+        std::ifstream file(path, std::ios::binary | std::ios::ate);
+        if (!file.is_open()) {
+            continue;
+        }
+        const auto size = static_cast<size_t>(file.tellg());
+        file.seekg(0);
+        std::vector<u8> data(size);
+        if (!file.read(reinterpret_cast<char*>(data.data()), static_cast<std::streamsize>(size))) {
+            continue;
+        }
+        const std::span<const u8> bytes{data};
+        const u8* key = nullptr;
+        if (size >= 8 && std::memcmp(data.data(), "yuzucach", 8) == 0) {
+            if (size < 12 || !IsReadableRuntimeCacheVersion(Get<u32>(data, 8))) {
+                continue;
+            }
+            size_t cur = 12;
+            while (ReadRecordEnvs(bytes, cur, envs, key)) {
+                if (IsVertexFragmentKey(key, envs)) {
+                    add(bytes, key);
+                }
+            }
+        } else {
+            const ShaderCacheV2::ParsedLog log = ShaderCacheV2::ParseLog(bytes);
+            for (const ShaderCacheV2::LogRecord& record : log.live) {
+                if (record.kind != ShaderCacheV2::RecordKind::Graphics) {
+                    continue;
+                }
+                size_t cur = 0;
+                if (ReadRecordEnvs(record.payload, cur, envs, key) &&
+                    IsVertexFragmentKey(key, envs)) {
+                    add(record.payload, key);
+                }
+            }
+        }
+    }
+    return entries;
+}
+
+std::vector<StateEntry> ReadStateList(const std::filesystem::path& path) {
+    std::vector<StateEntry> entries;
+    std::ifstream file(path, std::ios::binary | std::ios::ate);
+    if (!file.is_open()) {
+        return entries;
+    }
+    const auto size = static_cast<size_t>(file.tellg());
+    file.seekg(0);
+    std::vector<u8> data(size);
+    if (!file.read(reinterpret_cast<char*>(data.data()), static_cast<std::streamsize>(size)) ||
+        size < 24 || std::memcmp(data.data(), StateListMagic.data(), 8) != 0 ||
+        Get<u32>(data, 8) != WarmCacheVersion || Get<u32>(data, 12) != GraphicsKeySize) {
+        return entries;
+    }
+    const std::span<const u8> bytes{data};
+    const u64 count = Get<u64>(data, 16);
+    size_t cur = 24;
+    for (u64 i = 0; i < count; ++i) {
+        StateEntry entry;
+        if (GraphicsKeySize > size - cur) {
+            return {};
+        }
+        std::memcpy(entry.key.data(), data.data() + cur, GraphicsKeySize);
+        cur += GraphicsKeySize;
+        for (auto& state : entry.env_states) {
+            if (4 > size - cur) {
+                return {};
+            }
+            const u32 length = Get<u32>(bytes, cur);
+            cur += 4;
+            if (length < EnvHeaderSize || length > size - cur) {
+                return {};
+            }
+            state.assign(data.begin() + cur, data.begin() + cur + length);
+            cur += length;
+        }
+        entries.push_back(std::move(entry));
+    }
+    return entries;
+}
+
+bool WriteStateList(const std::filesystem::path& path, const std::vector<StateEntry>& entries) {
+    std::unordered_set<u128, U128Hasher> seen;
+    std::vector<const StateEntry*> unique;
+    for (const auto& entry : entries) {
+        if (seen.insert(EntryHash(entry)).second) {
+            unique.push_back(&entry);
+        }
+    }
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    const u32 version = WarmCacheVersion;
+    const u32 key_size = GraphicsKeySize;
+    const u64 count = unique.size();
+    file.write(StateListMagic.data(), StateListMagic.size())
+        .write(reinterpret_cast<const char*>(&version), sizeof(version))
+        .write(reinterpret_cast<const char*>(&key_size), sizeof(key_size))
+        .write(reinterpret_cast<const char*>(&count), sizeof(count));
+    for (const StateEntry* entry : unique) {
+        file.write(reinterpret_cast<const char*>(entry->key.data()),
+                   static_cast<std::streamsize>(entry->key.size()));
+        for (const auto& state : entry->env_states) {
+            const u32 length = static_cast<u32>(state.size());
+            file.write(reinterpret_cast<const char*>(&length), sizeof(length));
+            file.write(reinterpret_cast<const char*>(state.data()),
+                       static_cast<std::streamsize>(state.size()));
+        }
+    }
+    return static_cast<bool>(file);
+}
+
+u64 EnvStateCodeSize(std::span<const u8> env_state) {
+    return env_state.size() < EnvHeaderSize ? 0 : Get<u64>(env_state, 0);
+}
+
+std::vector<u8> EnvWithCode(std::span<const u8> env_state, std::span<const u8> code) {
+    if (env_state.size() < EnvHeaderSize || EnvStateCodeSize(env_state) != code.size()) {
+        return {};
+    }
+    std::vector<u8> out(env_state.begin(), env_state.begin() + EnvHeaderSize);
+    out.insert(out.end(), code.begin(), code.end());
+    out.insert(out.end(), env_state.begin() + EnvHeaderSize, env_state.end());
+    return out;
+}
+
+std::span<const u8> EnvCode(std::span<const u8> env) {
+    if (env.size() < EnvHeaderSize) {
+        return {};
+    }
+    const u64 code_size = Get<u64>(env, 0);
+    if (code_size > env.size() - EnvHeaderSize) {
+        return {};
+    }
+    return env.subspan(EnvHeaderSize, static_cast<size_t>(code_size));
+}
 
 std::optional<std::string> LowerProgram(std::span<const u8> program, bool graphics,
                                         LoweredCode& out) {

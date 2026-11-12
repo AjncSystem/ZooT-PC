@@ -8,7 +8,8 @@ param(
     [string]$Env = '',
     [string]$Ini = '',  # "key=value,..." set in the run's copy of sdl2-config.ini
     [switch]$Keep,  # keep the caches of an earlier run with this label (second boot)
-    [string]$Seed = ''  # title cache folder to start from (pipeline caches only, no warm files)
+    [string]$Seed = '',  # title cache folder to start from (pipeline caches only, no warm files)
+    [string]$States = ''  # pipeline state list copied next to the run's exe (zoot-pipeline-states.bin)
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)   # <ZooT-PC>
@@ -17,12 +18,14 @@ if (-not $Exe) { $Exe = Join-Path $bin 'eden-cli.exe' }
 # The game file the play install's launcher points at.
 $game = (Get-Content (Join-Path $bin 'user\zoot\launcher.json') -Raw | ConvertFrom-Json).game
 $dir = Join-Path $root "bench\$Label"
-Get-Process eden-cli -ErrorAction SilentlyContinue | Stop-Process -Force
+# Only benches' own runs: the player's game may be open.
+Get-Process eden-cli -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$root\bench\*" } | Stop-Process -Force
 Start-Sleep 1
 if (-not $Keep -and (Test-Path $dir)) { Remove-Item -Recurse -Force $dir }
 New-Item -ItemType Directory -Force "$dir\user\config", "$dir\nvcache" | Out-Null
 Copy-Item -Force $Exe "$dir\eden-cli.exe"
 Copy-Item -Force (Join-Path $bin 'nx2_switches.txt') "$dir\"
+if ($States) { Copy-Item -Force $States "$dir\zoot-pipeline-states.bin" }
 if (-not $Keep) {
     # Same settings as the play install (precache on), no saves: the title screen needs none.
     Copy-Item -Force (Join-Path $bin 'user\config\sdl2-config.ini') "$dir\user\config\"

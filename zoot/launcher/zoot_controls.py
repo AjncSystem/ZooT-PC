@@ -100,6 +100,47 @@ def stick_from_keys(up, down, left, right, modifier=0):
     return 'engine:analog_from_button,' + ','.join(parts) + ',modifier_scale:0.500000'
 
 
+# ---- mouse -------------------------------------------------------------------------------------
+# Tk mouse button -> Lichii's MouseButton (input_common/drivers/mouse.h): left, right, middle
+# (wheel), back, forward.
+TK_MOUSE_BUTTONS = {1: 0, 3: 1, 2: 2, 4: 3, 5: 4}
+MOUSE_BUTTON_NAMES = {0: 'Mouse esquerdo', 1: 'Mouse direito', 2: 'Mouse meio',
+                      3: 'Mouse lateral 1', 4: 'Mouse lateral 2'}
+
+
+def mouse_param(button):
+    return f'engine:mouse,button:{button},port:0,pad:0'
+
+
+def mouse_stick(invert_y=False):
+    """The right stick on the mouse camera (mouse panning moves this stick)."""
+    return ('engine:mouse,axis_x:0,axis_y:1,threshold:0.500000,range:1.000000,'
+            'deadzone:0.000000,invert_x:+,invert_y:' + ('-' if invert_y else '+'))
+
+
+def is_mouse_stick(text):
+    p = parse(text)
+    return p.get('engine') == 'mouse' and 'axis_x' in p
+
+
+# Keyboard and mouse: WASD walks (C walks slowly), the mouse turns the camera, left click is the
+# sword (B), right click targets (ZL), Space is the action button (A).
+def keyboard_mouse(invert_y=False):
+    keys = {
+        'button_a': 44, 'button_x': 30, 'button_y': 31, 'button_l': 32, 'button_r': 225,
+        'button_zr': 9, 'button_plus': 40, 'button_minus': 43, 'button_home': 0,
+        'button_screenshot': 0, 'button_dup': 82, 'button_ddown': 81, 'button_dleft': 80,
+        'button_dright': 79, 'button_lstick': 224,
+    }
+    out = {key: key_param(code) for key, code in keys.items()}
+    out['button_b'] = mouse_param(0)
+    out['button_zl'] = mouse_param(1)
+    out['button_rstick'] = mouse_param(2)
+    out['lstick'] = stick_from_keys(26, 22, 4, 7, 6)
+    out['rstick'] = mouse_stick(invert_y)
+    return out
+
+
 def default_keyboard():
     out = {key: key_param(DEFAULT_KEYS.get(key, 0)) for key, _ in BUTTONS}
     for key, keys in DEFAULT_STICKS.items():
@@ -123,6 +164,10 @@ def describe(text, tr=lambda s: s):
         return '—'
     if engine == 'keyboard':
         return f"{tr('Tecla')} {key_name(p.get('code'))}"
+    if engine == 'mouse':
+        if 'axis_x' in p:
+            return tr('Mouse (câmera)')
+        return tr(MOUSE_BUTTON_NAMES.get(int(p.get('button', 0)), 'Mouse'))
     if engine == 'analog_from_button':
         keys = [key_name(parse(p.get(d, '')).get('code')) for d in ('up', 'left', 'down', 'right')]
         return f"{tr('Teclas')} {'/'.join(keys)}"

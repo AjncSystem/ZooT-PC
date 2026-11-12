@@ -70,6 +70,7 @@
 #include "video_core/shader_environment.h"
 #include "video_core/shader_notify.h"
 #include "video_core/shader_warm/shader_warm_builder.h"
+#include "video_core/shader_warm/warm_records.h"
 #include "video_core/spirv_inline_control.h"
 #include "video_core/surface.h"
 #include "video_core/vulkan_common/vulkan_device.h"
@@ -1932,6 +1933,10 @@ size_t PipelineCache::PrecacheGraphicsWarm(u64 title_id, size_t num_threads, siz
                 ShaderPools pools;
                 while (!cancel.load(std::memory_order_relaxed)) {
                     FileEnvironment env;
+                    FileEnvironment fragment_env;
+                    // ZooT-PC pipeline state list entries: a vertex and a fragment env (a
+                    // runtime cache record), built together with the real draw state.
+                    bool state_entry = false;
                     GraphicsPipelineCacheKey key{};
                     {
                         std::scoped_lock lock{reader.mutex};
@@ -1942,13 +1947,17 @@ size_t PipelineCache::PrecacheGraphicsWarm(u64 title_id, size_t num_threads, siz
                             u32 num_envs{};
                             reader.file.read(reinterpret_cast<char*>(&num_envs),
                                              sizeof(num_envs));
-                            if (num_envs != 1) {
+                            if (num_envs != 1 && num_envs != 2) {
                                 LOG_WARNING(Render_Vulkan,
                                             "Shader precache: unexpected graphics entry, stopping");
                                 reader.failed = true;
                                 break;
                             }
                             env.Deserialize(reader.file, reader.end);
+                            if (num_envs == 2) {
+                                state_entry = true;
+                                fragment_env.Deserialize(reader.file, reader.end);
+                            }
                             reader.file.read(reinterpret_cast<char*>(&key), sizeof(key));
                             ++reader.read;
                             reader.position = reader.file.tellg();
@@ -1973,10 +1982,13 @@ size_t PipelineCache::PrecacheGraphicsWarm(u64 title_id, size_t num_threads, siz
                         reader.adapted_builds.fetch_add(1);
                     }
                     env.SetGuessMissing(&guess);
+                    fragment_env.SetGuessMissing(&guess);
                     WarmResult result = WarmResult::Unbuildable;
                     try {
-                        Shader::Environment* const env_ptr = &env;
-                        result = WarmGraphicsLibraries(pools, key, std::span{&env_ptr, 1});
+                        // A state list entry builds both stages with the real draw state.
+                        const std::array<Shader::Environment*, 2> env_ptrs{&env, &fragment_env};
+                        result = WarmGraphicsLibraries(
+                            pools, key, std::span{env_ptrs.data(), state_entry ? 2U : 1U});
                     } catch (const vk::Exception& e) {
                         LOG_DEBUG(Render_Vulkan, "Shader precache: {}", e.what());
                         result = WarmResult::DriverFailed;

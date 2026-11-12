@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // ZooT-PC in-game hotkeys and menu:
-//   F1  the ZooT menu: video options applied at once (FPS mode, fullscreen, scaling filter, FSR
-//       sharpening, anti-aliasing, aspect ratio, VSync, console mode, volume) and the resolution
-//       for the next start. Arrows choose and change, F1 or Esc closes.
+//   F1  the ZooT menu, laid out like Hookshot's in gold: over the whole game window, tabs
+//       (Display, Performance, Audio, Controls; Q/E or Tab switch), rows with their value
+//       between arrows (the chosen one in a gold box), and a help panel for the chosen row.
+//       Arrows choose and change, F1 or Esc closes.
 //   F7  FPS mode: 60 -> 30 -> unlimited -> 60.
 //   F8  frame generation (Lichii's built-in optical flow, 2x) on and off.
 //   F10 performance panel in the top-left corner: FPS (game frames plus generated ones), frame
@@ -64,6 +65,8 @@ private:
         std::function<int()> get;
         std::function<void(int)> set;
         bool next_start{};
+        int tab{};         ///< MenuTab
+        std::string help;  ///< shown beside the rows while this one is chosen
     };
 
     void BuildItems();
@@ -103,7 +106,10 @@ private:
     bool perf_vram_ok{};
     int perf_position{};  // 0 top left, 1 top center, 2 top right
     std::vector<Item> items;
-    int selected{};
+    int selected{};  ///< row within the current tab
+    int tab{};       ///< current tab
+    std::array<int, 4> tab_selected{};
+    std::vector<int> TabRows() const;
     bool menu_open{};
     Panel menu;
     Panel notice;

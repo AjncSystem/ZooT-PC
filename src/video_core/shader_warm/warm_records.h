@@ -120,4 +120,40 @@ RuntimeStats ReadRuntimeStats(const std::vector<std::filesystem::path>& caches);
 /// Built-in FixedPipelineState guesses (warm_defaults.cpp), hash slots zero.
 GraphicsKey DefaultTemplate(bool vertex);
 
+/// ZooT-PC pipeline state list: graphics pipelines recorded while playing, so a new player's
+/// precache builds their libraries exactly as the game will ask for them. Each entry is the
+/// pipeline key (draw state and stage hashes) and, per stage, the shader environment without its
+/// code: the values the translation read while playing (texture types and formats, constant
+/// buffer values, the program header). The code itself comes from the player's own game files,
+/// matched by its hash. File (zoot-pipeline-states.bin, next to the executable): "ZOOTPST2", the
+/// cache version, the key size, the entry count, then per entry the key and, for the vertex and
+/// the fragment stage, a u32 size and that many bytes. Only vertex (slot 1) + fragment (slot 5)
+/// pipelines are kept.
+std::filesystem::path StateListPath();
+
+struct StateEntry {
+    GraphicsKey key{};
+    /// Vertex, fragment: the env record (EnvHeaderSize header, tables, tail) without the code.
+    std::array<std::vector<u8>, 2> env_states;
+};
+
+/// The vertex + fragment pipelines of runtime pipeline caches, each once.
+std::vector<StateEntry> ReadRuntimeStateEntries(const std::vector<std::filesystem::path>& caches);
+
+/// The entries of a state list file, empty when it is missing or of another cache version.
+std::vector<StateEntry> ReadStateList(const std::filesystem::path& path);
+
+/// Writes a state list file (entries deduplicated, in order). False when it cannot be written.
+bool WriteStateList(const std::filesystem::path& path, const std::vector<StateEntry>& entries);
+
+/// The code size an env state names (its header's first field), 0 when it is too short.
+u64 EnvStateCodeSize(std::span<const u8> env_state);
+
+/// The whole env record: the state's header, `code`, then the rest of the state. Empty when the
+/// code is not the size the header names.
+std::vector<u8> EnvWithCode(std::span<const u8> env_state, std::span<const u8> code);
+
+/// The code of an env record (after its header), empty when the record is too short.
+std::span<const u8> EnvCode(std::span<const u8> env);
+
 } // namespace VideoCommon::ShaderWarm

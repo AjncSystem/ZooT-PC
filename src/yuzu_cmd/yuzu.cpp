@@ -63,6 +63,7 @@
 #include "video_core/rasterizer_interface.h"
 #include "video_core/renderer_base.h"
 #include "video_core/shader_warm/shader_warm_builder.h"
+#include "video_core/shader_warm/warm_records.h"
 #include "yuzu_cmd/emu_window/emu_window_sdl3.h"
 #ifdef HAS_OPENGL
 #include "yuzu_cmd/emu_window/emu_window_sdl3_gl.h"
@@ -698,6 +699,43 @@ static bool ZootPadCommand(InputCommon::InputSubsystem& input, int argc, char** 
     return ok;
 }
 
+/// ZooT-PC tool (not in --help): the pipeline state list from pipeline caches recorded while
+/// playing, merged into the list file when it exists. Each vertex + fragment pipeline goes in
+/// with its draw state and the values its programs' translation read: no game code.
+///   eden-cli --zoot-export-states <list file> [pipeline cache files...]
+/// Without cache files: Ocarina's own (lichii-cache.v2.bin, or an older disk cache).
+static bool ExportPipelineStates(int argc, char** argv) {
+    namespace ShaderWarm = VideoCommon::ShaderWarm;
+    if (argc < 3) {
+        fmt::print(stderr, "usage: --zoot-export-states <list file> [cache files...]\n");
+        return false;
+    }
+    const std::filesystem::path out = Common::FS::ToU8String(argv[2]);
+    std::vector<std::filesystem::path> caches;
+    for (int i = 3; i < argc; ++i) {
+        caches.emplace_back(Common::FS::ToU8String(argv[i]));
+    }
+    if (caches.empty()) {
+        constexpr u64 OcarinaTitle = 0x0400486024DEC000ULL;
+        caches = ShaderWarm::FindRuntimeCaches(
+            ShaderWarm::GraphicsWarmPath(OcarinaTitle).parent_path());
+    }
+    std::vector<ShaderWarm::StateEntry> keys = ShaderWarm::ReadStateList(out);
+    const size_t before = keys.size();
+    auto recorded = ShaderWarm::ReadRuntimeStateEntries(caches);
+    const size_t recorded_count = recorded.size();
+    keys.insert(keys.end(), std::make_move_iterator(recorded.begin()),
+                std::make_move_iterator(recorded.end()));
+    if (!ShaderWarm::WriteStateList(out, keys)) {
+        fmt::print(stderr, "cannot write {}\n", Common::FS::PathToUTF8String(out));
+        return false;
+    }
+    const size_t after = ShaderWarm::ReadStateList(out).size();
+    fmt::print("{} cache(s): {} vertex+fragment pipelines; list {} -> {} keys ({})\n",
+               caches.size(), recorded_count, before, after, Common::FS::PathToUTF8String(out));
+    return true;
+}
+
 /// ZooT-PC launcher hook (not in --help): writes the game's own icon and title, read from the
 /// player's copy, for the launcher's game card. Nothing is shipped with the launcher.
 ///   eden-cli --zoot-export-art <game file> <output dir>
@@ -772,14 +810,38 @@ static void PrepareShaderPrecache(Core::System& system, const std::string& game_
     std::error_code ec;
     // With pipeline libraries the builder also writes the vertex and fragment programs
     // (warm-graphics.bin); a compute-only precache from before needs that file built once.
+    const bool use_gpl = Settings::values.use_graphics_pipeline_library.GetValue();
     const bool graphics_missing =
-        Settings::values.use_graphics_pipeline_library.GetValue() &&
-        !std::filesystem::exists(ShaderWarm::GraphicsWarmPath(title_id), ec);
-    if (!ShaderWarm::WarmPending(title_id) && !graphics_missing) {
+        use_gpl && !std::filesystem::exists(ShaderWarm::GraphicsWarmPath(title_id), ec);
+    // ZooT-PC pipeline state list (zoot-pipeline-states.bin next to the exe): its entries go into
+    // warm-graphics.bin, so a new or changed list (an update) builds that file once more.
+    const auto list_path = ShaderWarm::StateListPath();
+    std::string list_stamp = "none";
+    if (std::filesystem::exists(list_path, ec)) {
+        list_stamp = fmt::format(
+            "{} {}", std::filesystem::file_size(list_path, ec),
+            std::filesystem::last_write_time(list_path, ec).time_since_epoch().count());
+    }
+    const auto stamp_path = ShaderWarm::GraphicsWarmPath(title_id).parent_path() /
+                            "warm-states.stamp";
+    std::string built_stamp;
+    if (std::ifstream in{stamp_path}) {
+        std::getline(in, built_stamp);
+    }
+    if (built_stamp.empty()) {
+        built_stamp = "none";
+    }
+    const bool states_changed = use_gpl && !graphics_missing && list_stamp != built_stamp;
+    if (states_changed) {
+        LOG_INFO(Frontend, "Shader precache: pipeline state list changed ({} -> {}), rebuilding",
+                 built_stamp, list_stamp);
+    }
+    if (!ShaderWarm::WarmPending(title_id) && !graphics_missing && !states_changed) {
         ShaderWarm::RequestWarmBeforeStart(true);
         return;
     }
-    if (!std::filesystem::exists(ShaderWarm::ComputeWarmPath(title_id), ec) || graphics_missing) {
+    if (!std::filesystem::exists(ShaderWarm::ComputeWarmPath(title_id), ec) || graphics_missing ||
+        states_changed) {
         LOG_INFO(Frontend, "Shader precache: extracting the shaders of {:016X} from the game files",
                  title_id);
         const auto begin = std::chrono::steady_clock::now();
@@ -801,14 +863,18 @@ static void PrepareShaderPrecache(Core::System& system, const std::string& game_
         const auto result = ShaderWarm::BuildWarmFiles(
             system, Common::FS::ToU8String(game_path), title_id, on_progress, {});
         LOG_INFO(Frontend,
-                 "Shader precache: ok={} archives={} compute={} vertex={} fragment={} skipped={} "
-                 "in {:.1f} s {}",
+                 "Shader precache: ok={} archives={} compute={} vertex={} fragment={} "
+                 "state list={}/{} skipped={} in {:.1f} s {}",
                  result.ok, result.archives, result.compute_programs, result.vertex_programs,
-                 result.fragment_programs, result.skipped,
+                 result.fragment_programs, result.state_entries, result.state_keys,
+                 result.skipped,
                  std::chrono::duration<double>(std::chrono::steady_clock::now() - begin).count(),
                  result.error);
         if (!result.ok || !std::filesystem::exists(ShaderWarm::ComputeWarmPath(title_id), ec)) {
             return;
+        }
+        if (std::ofstream out{stamp_path, std::ios::trunc}) {
+            out << list_stamp << '\n';
         }
     }
     ShaderWarm::RequestWarmBeforeStart(true);
@@ -854,6 +920,9 @@ extern "C" SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
 
     if (argc > 1 && std::string_view{argv[1]} == "--build-warm") {
         return BuildWarm(state->system, argc, argv) ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
+    }
+    if (argc > 1 && std::string_view{argv[1]} == "--zoot-export-states") {
+        return ExportPipelineStates(argc, argv) ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
     }
     if (argc > 1 && std::string_view{argv[1]} == "--zoot-export-art") {
         return ExportGameArt(state->system, argc, argv) ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
