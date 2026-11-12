@@ -92,6 +92,13 @@ constexpr Phrase Phrases[] = {
      "↑↓ choisir   ·   ←→ modifier   ·   F1 / Échap fermer",
      "↑↓ 選択   ·   ←→ 変更   ·   F1 / Esc 閉じる", "↑↓ 선택   ·   ←→ 변경   ·   F1 / Esc 닫기",
      "↑↓ выбор   ·   ←→ изменить   ·   F1 / Esc закрыть"},
+    {"upscaler", "Upscaler", "Upscaler", "Escalador", "Upscaler", "アップスケーラー", "업스케일러",
+     "Апскейлер"},
+    {"game_own", "Do jogo", "Game's own", "El del juego", "Celui du jeu", "ゲーム標準", "게임 기본",
+     "Игровой"},
+    {"framegen", "Geração de quadros", "Frame generation", "Generación de fotogramas",
+     "Génération d’images", "フレーム生成", "프레임 생성", "Генерация кадров"},
+    {"soft", "suave", "soft", "suave", "doux", "ソフト", "부드럽게", "мягкий"},
     {"fps_notice", "FPS: {}", "FPS: {}", "FPS: {}", "FPS : {}", "FPS: {}", "FPS: {}", "FPS: {}"},
 };
 
@@ -159,6 +166,30 @@ std::string FpsName(int mode) {
     return mode == Fps30 ? "30" : mode == FpsUnlimited ? Say("unlimited") : "60";
 }
 
+// The upscaler in place of Ocarina's own, as the launcher stores it ("upscaler" in launcher.json).
+enum Upscaler { UpscalerGame = 0, UpscalerFsr31 = 1, UpscalerFsr4 = 2, UpscalerDlss = 3 };
+
+Upscaler CurrentUpscaler() {
+    using Settings::values;
+    if (!values.ocarina_fsr.GetValue()) {
+        return UpscalerGame;
+    }
+    return values.nvidia_dlss.GetValue() ? UpscalerDlss
+           : values.amd_fsr4.GetValue()  ? UpscalerFsr4
+                                         : UpscalerFsr31;
+}
+
+void ApplyUpscaler(int v) {
+    using Settings::values;
+    values.ocarina_fsr.SetValue(v != UpscalerGame);
+    values.amd_fsr4.SetValue(v == UpscalerFsr4);
+    values.nvidia_dlss.SetValue(v == UpscalerDlss);
+}
+
+const char* UpscalerKey(int v) {
+    return v == UpscalerFsr31 ? "fsr31" : v == UpscalerFsr4 ? "fsr4" : v == UpscalerDlss ? "dlss" : "game";
+}
+
 } // Anonymous namespace
 
 Overlay::Overlay(Core::System& system_, SDL_Window* game_, std::function<void()> relayout_)
@@ -190,7 +221,7 @@ void Overlay::BuildItems() {
                       {"Bicubic", int(ScalingFilter::Bicubic)},
                       {"ScaleForce", int(ScalingFilter::ScaleForce)},
                       {"AMD FSR 1", int(ScalingFilter::Fsr)},
-                      {"AMD FSR 3", int(ScalingFilter::Fsr3)},
+                      {"AMD FSR 1 (" + Say("soft") + ")", int(ScalingFilter::Fsr3)},
                       {"Lanczos", int(ScalingFilter::Lanczos)},
                       {"Area", int(ScalingFilter::Area)}},
                      [] { return int(values.scaling_filter.GetValue()); },
@@ -255,6 +286,26 @@ void Overlay::BuildItems() {
                       {"4x", int(ResolutionSetup::Res4X)}},
                      [] { return int(values.resolution_setup.GetValue()); },
                      [](int v) { values.resolution_setup.SetValue(ResolutionSetup(v)); },
+                     true});
+    // What replaces Ocarina's own upscaler, read when the game starts. FSR 4 and DLSS are offered
+    // by the launcher where the PC has them; here they stay listed when already chosen.
+    std::vector<std::pair<std::string, int>> upscalers{{Say("game_own"), UpscalerGame},
+                                                       {"AMD FSR 3.1", UpscalerFsr31}};
+    if (CurrentUpscaler() == UpscalerFsr4) {
+        upscalers.emplace_back("AMD FSR 4", UpscalerFsr4);
+    }
+    if (CurrentUpscaler() == UpscalerDlss) {
+        upscalers.emplace_back("NVIDIA DLSS", UpscalerDlss);
+    }
+    items.push_back({Say("upscaler"), upscalers, [] { return int(CurrentUpscaler()); },
+                     [](int v) { ApplyUpscaler(v); }, true});
+    items.push_back({Say("framegen"),
+                     {{Say("off"), 0}, {"2x", 1}},
+                     [] { return values.frame_gen.GetValue() ? 1 : 0; },
+                     [](int v) {
+                         values.frame_gen.SetValue(v != 0);
+                         values.frame_gen_type.SetValue(FrameGenType::Fsr3);
+                     },
                      true});
 }
 
@@ -360,6 +411,8 @@ void Overlay::SaveToLauncher() {
     data["mode"] = int(values.use_docked_mode.GetValue());
     data["volume"] = int(values.volume.GetValue());
     data["fullscreen"] = (SDL_GetWindowFlags(game) & SDL_WINDOW_FULLSCREEN) != 0;
+    data["upscaler"] = UpscalerKey(CurrentUpscaler());
+    data["framegen"] = values.frame_gen.GetValue() ? 2 : 0;
     const int fps = CurrentFps();
     data["fps_mode"] = fps == Fps30 ? "30" : fps == FpsUnlimited ? "unlimited" : "60";
     std::error_code ec;
@@ -380,7 +433,9 @@ void Overlay::OpenMenu(bool open) {
     menu_open = open;
     if (open) {
         BuildItems();  // fresh values
-        if (!menu.window && !MakePanel(menu, 620, 640)) {
+        // 640 fits the header, ten rows of 46 and the key help; each further row adds 46.
+        const int height = 640 + (int(items.size()) - 10) * 46;
+        if (!menu.window && !MakePanel(menu, 620, height)) {
             menu_open = false;
             return;
         }
@@ -593,7 +648,7 @@ void Overlay::DrawMenu() {
     PlaceOver(menu.window, w, h, false);
     int pw = 0, ph = 0;
     SDL_GetCurrentRenderOutputSize(menu.renderer, &pw, &ph);
-    const float s = float(ph) / 640.0f;
+    const float s = float(pw) / 620.0f;  // the width is fixed; the height follows the rows
     SDL_Renderer* r = menu.renderer;
     const float W = float(pw), H = float(ph);
 

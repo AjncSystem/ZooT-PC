@@ -565,6 +565,44 @@ T = {
                  'ko': '바이큐빅', 'ru': 'Бикубический'},
     'Área': {'en': 'Area', 'es': 'Área', 'fr': 'Zone', 'ja': 'エリア', 'ko': '영역',
              'ru': 'Область'},
+    'AMD FSR 1 (suave)': {'en': 'AMD FSR 1 (soft)', 'es': 'AMD FSR 1 (suave)',
+                          'fr': 'AMD FSR 1 (doux)', 'ja': 'AMD FSR 1 (ソフト)',
+                          'ko': 'AMD FSR 1 (부드럽게)', 'ru': 'AMD FSR 1 (мягкий)'},
+    'Upscaler e geração de quadros': {
+        'en': 'Upscaler and frame generation', 'es': 'Escalador y generación de fotogramas',
+        'fr': 'Upscaler et génération d’images', 'ja': 'アップスケーラーとフレーム生成',
+        'ko': '업스케일러와 프레임 생성', 'ru': 'Апскейлер и генерация кадров'},
+    'Geração de quadros': {'en': 'Frame generation', 'es': 'Generación de fotogramas',
+                           'fr': 'Génération d’images', 'ja': 'フレーム生成', 'ko': '프레임 생성',
+                           'ru': 'Генерация кадров'},
+    'Do jogo': {'en': "Game's own", 'es': 'El del juego', 'fr': 'Celui du jeu',
+                'ja': 'ゲーム標準', 'ko': '게임 기본', 'ru': 'Игровой'},
+    'AMD FSR 4 (placas AMD)': {'en': 'AMD FSR 4 (AMD cards)', 'es': 'AMD FSR 4 (tarjetas AMD)',
+                               'fr': 'AMD FSR 4 (cartes AMD)', 'ja': 'AMD FSR 4 (AMD カード)',
+                               'ko': 'AMD FSR 4 (AMD 그래픽카드)', 'ru': 'AMD FSR 4 (карты AMD)'},
+    'Desligada': {'en': 'Off', 'es': 'Desactivada', 'fr': 'Désactivée', 'ja': 'オフ', 'ko': '끔',
+                  'ru': 'Выкл.'},
+    '2x (interpolação)': {'en': '2x (interpolation)', 'es': '2x (interpolación)',
+                          'fr': '2x (interpolation)', 'ja': '2x (補間)', 'ko': '2x (보간)',
+                          'ru': '2x (интерполяция)'},
+    'Valem ao abrir o jogo. FSR 3.1 e DLSS deixam a imagem mais nítida; para mais FPS, baixe a '
+    'Resolução junto com eles. A geração de quadros chega até a taxa do monitor.': {
+        'en': 'Applied when the game starts. FSR 3.1 and DLSS give a sharper picture; for more '
+              'FPS, lower the Resolution along with them. Frame generation goes up to the '
+              "monitor's refresh rate.",
+        'es': 'Se aplican al abrir el juego. FSR 3.1 y DLSS dan una imagen más nítida; para más '
+              'FPS, baja la Resolución junto con ellos. La generación de fotogramas llega hasta '
+              'la frecuencia del monitor.',
+        'fr': 'Appliqués au lancement du jeu. FSR 3.1 et DLSS donnent une image plus nette ; pour '
+              'plus de FPS, baissez la Résolution avec eux. La génération d’images monte '
+              'jusqu’à la fréquence de l’écran.',
+        'ja': 'ゲーム起動時に反映されます。FSR 3.1 と DLSS は画像を鮮明にします。FPS を上げるには'
+              '解像度も下げてください。フレーム生成はモニターのリフレッシュレートまでです。',
+        'ko': '게임을 시작할 때 적용됩니다. FSR 3.1과 DLSS는 화면을 더 선명하게 합니다. FPS를 '
+              '높이려면 해상도도 함께 낮추세요. 프레임 생성은 모니터 주사율까지 올라갑니다.',
+        'ru': 'Применяются при запуске игры. FSR 3.1 и DLSS дают более чёткую картинку; для '
+              'большего FPS снизьте и разрешение. Генерация кадров поднимает частоту до частоты '
+              'монитора.'},
 }
 
 HELP = {

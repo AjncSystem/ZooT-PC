@@ -59,7 +59,14 @@ NO_WINDOW = 0x08000000  # CREATE_NO_WINDOW
 RESOLUTIONS = [('0,5x (540p)', 1), ('0,75x', 2), ('1x (1080p)', 3), ('1,25x', 4), ('1,5x', 5),
                ('2x (4K)', 6), ('3x', 7), ('4x', 8)]
 FILTERS = [('Bilinear', 1), ('Bicúbico', 2), ('ScaleForce', 5), ('AMD FSR 1', 6),
-           ('AMD FSR 3', 15), ('Lanczos', 4), ('Área', 7)]
+           ('AMD FSR 1 (suave)', 15), ('Lanczos', 4), ('Área', 7)]
+# What replaces Ocarina's own upscaler (it renders 1440p docked and upscales to 4K): AMD FSR 3.1
+# (built in, any GPU), AMD FSR 4 (AMD's driver) or NVIDIA DLSS (RTX, with NVIDIA Streamline's
+# DLLs in streamline\ next to the exe). Read when the game starts.
+UPSCALER_KEYS = {'game': ('false', 'false', 'false'), 'fsr31': ('true', 'false', 'false'),
+                 'fsr4': ('true', 'true', 'false'), 'dlss': ('true', 'false', 'true')}
+# Frame generation: Lichii's built-in optical flow interpolation, one extra frame per frame.
+FRAMEGEN = [('Desligada', 0), ('2x (interpolação)', 2)]
 AA = [('Nenhum', 0), ('FXAA', 1), ('SMAA', 2)]
 ASPECT = [('16:9', 0), ('21:9', 2), ('16:10', 3), ('4:3', 1), ('Esticar', 4)]
 VSYNC = [('Desligado', 0), ('Mailbox', 1), ('Ligado (FIFO)', 2), ('FIFO relaxado', 3)]
@@ -88,7 +95,7 @@ DEFAULTS = {
     'game': '', 'resolution': 3, 'filter': 15, 'aa': 1, 'aspect': 0, 'vsync': 2, 'mode': 1,
     'fullscreen': False, 'gpl': True, 'precache': True, 'volume': 100,
     'game_language': 17, 'launcher_language': 'pt', 'fps_mode': '60', 'sharpness': 25,
-    'auto_update': True, 'last_update_check': 0,
+    'auto_update': True, 'last_update_check': 0, 'upscaler': 'game', 'framegen': 0,
 }
 
 
@@ -769,6 +776,24 @@ class Launcher(tk.Tk):
                   command=lambda v: self.set_opt('volume', int(float(v)))).pack(
             side='right', fill='x', expand=True, padx=(24, 0))
 
+    def upscalers(self):
+        """The upscaler choices this PC can use: FSR 4 only with an AMD card, DLSS only with an
+        NVIDIA RTX card and NVIDIA Streamline's DLLs in the streamline folder."""
+        if not hasattr(self, 'hw'):
+            try:
+                self.hw = hardware()
+            except Exception:  # noqa: BLE001 - must never break the launcher
+                self.hw = ([], 0)
+        names = ' '.join(name for name, _mem in self.hw[0]).upper()
+        out = [(_('Do jogo'), 'game'), ('AMD FSR 3.1', 'fsr31')]
+        if 'AMD' in names or 'RADEON' in names:
+            out.append((_('AMD FSR 4 (placas AMD)'), 'fsr4'))
+        if 'RTX' in names and (BASE / 'streamline' / 'sl.interposer.dll').exists():
+            out.append(('NVIDIA DLSS', 'dlss'))
+        if self.settings.get('upscaler') not in {v for _t, v in out}:
+            self.settings['upscaler'] = 'game'
+        return out
+
     def build_graphics(self):
         page = self.page('graphics', _('Imagem e FPS'))
         box = self.card(page, _('Imagem'))
@@ -778,6 +803,14 @@ class Launcher(tk.Tk):
         self.combo(box, 'aa', _('Anti-serrilhado'), AA)
         self.combo(box, 'aspect', _('Proporção'), ASPECT)
         self.pad(box)
+        box = self.card(page, _('Upscaler e geração de quadros'))
+        self.combo(box, 'upscaler', 'Upscaler', self.upscalers())
+        self.combo(box, 'framegen', _('Geração de quadros'), FRAMEGEN)
+        tk.Label(box, text=_('Valem ao abrir o jogo. FSR 3.1 e DLSS deixam a imagem mais nítida; '
+                             'para mais FPS, baixe a Resolução junto com eles. A geração de '
+                             'quadros chega até a taxa do monitor.'),
+                 font=(T.BODY, 9), fg=T.MUTED, bg=T.PANEL, wraplength=760, justify='left').pack(
+            anchor='w', padx=18, pady=(0, 10))
         box = self.card(page, 'FPS')
         self.combo(box, 'fps_mode', _('Modo de FPS'), FPS_MODES)
         tk.Label(box, text=_('No jogo: F7 alterna 60 → 30 → ilimitado na hora.'),
@@ -1349,6 +1382,7 @@ class Launcher(tk.Tk):
     def apply_ini(self):
         s = self.settings
         lang = s['game_language']
+        fsr, fsr4, dlss = UPSCALER_KEYS.get(s.get('upscaler'), UPSCALER_KEYS['game'])
         write_ini({
             'resolution_setup': s['resolution'], 'scaling_filter': s['filter'],
             'anti_aliasing': s['aa'], 'aspect_ratio': s['aspect'], 'use_vsync': s['vsync'],
@@ -1361,6 +1395,8 @@ class Launcher(tk.Tk):
             # FPS mode, as F7 sets it in the game.
             'fps_limit': 30 if s['fps_mode'] == '30' else 0,
             'nx2_frame_rate_limit': 240 if s['fps_mode'] == 'unlimited' else 60,
+            'ocarina_fsr': fsr, 'amd_fsr4': fsr4, 'nvidia_dlss': dlss,
+            'frame_gen': 'true' if s.get('framegen') else 'false', 'frame_gen_type': 1,
         })
 
     def play(self):
