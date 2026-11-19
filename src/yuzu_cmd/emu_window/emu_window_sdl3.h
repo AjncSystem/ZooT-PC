@@ -122,6 +122,7 @@ protected:
     unsigned zoot_title_ticks{};
     float zoot_pan_rest_x{}, zoot_pan_rest_y{};  // sub-pixel movement left over
     bool zoot_hold_after_menu{};  // the mouse was held when the F1 menu opened
+    int zoot_volume_before_mute{-1};  // ZOOT_MUTE_BACKGROUND: the volume while in background
     void ZootMenuClosedCheck(bool was_open);
 
     // Mouse resetter once it

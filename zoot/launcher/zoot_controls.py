@@ -261,8 +261,12 @@ def run_core(core, args, cwd, timeout):
                            creationflags=0x08000000)
     except (OSError, subprocess.SubprocessError):
         return None
-    for line in reversed(r.stdout.decode('utf-8', 'replace').splitlines()):
-        line = line.strip()
+    # Line by line: the JSON answer is UTF-8, the log lines before it may not be.
+    for raw in reversed(r.stdout.splitlines()):
+        try:
+            line = raw.decode('utf-8').strip()
+        except UnicodeDecodeError:
+            continue
         if line.startswith('{') or line.startswith('['):
             try:
                 return json.loads(line)

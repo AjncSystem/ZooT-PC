@@ -96,9 +96,21 @@ DEFAULTS = {
     'fullscreen': False, 'gpl': True, 'precache': True, 'volume': 100,
     'game_language': 17, 'launcher_language': 'pt', 'fps_mode': '60', 'sharpness': 25,
     'auto_update': True, 'last_update_check': 0, 'upscaler': 'game', 'framegen': 0,
+    'dlss_preset': 'K', 'anisotropy': 5, 'vram_mode': 0, 'sound_mode': 1, 'audio_device': 'auto',
+    'mute_bg': False,
     'mouse_camera': True, 'mouse_sens': 50, 'mouse_invert': False, 'rstick_before_mouse': '',
 }
 MOUSE_SENS = [(f'{v}%', v) for v in (20, 35, 50, 65, 80, 100)]
+# NVIDIA DLSS model (EDEN_NX2_DLSS_PRESET): K is Lichii's choice; M and L are the newer
+# Transformer 2 models; "default" lets NVIDIA pick per quality mode.
+DLSS_PRESETS = [('Transformer (K)', 'K'), ('Transformer 2 (M)', 'M'), ('Transformer 2 (L)', 'L'),
+                ('Padrão da NVIDIA', 'default')]
+# max_anisotropy: Automatic, the game's own, 2x-16x (16x as Hookshot/Longshot use).
+ANISOTROPY = [('Automático', 0), ('Do jogo', 1), ('2x', 2), ('4x', 3), ('8x', 4), ('16x', 5)]
+# vram_usage_mode: Conservative keeps less in video memory (cards with 4-6 GB), Aggressive more.
+VRAM_MODES = [('Conservador', 0), ('Agressivo (8 GB ou mais)', 1)]
+# sound_index, the console's audio output: the game mixes 5.1 when it is Surround.
+SOUND_MODES = [('Estéreo', 1), ('Surround 5.1', 2), ('Mono', 0)]
 
 
 def hardware():
@@ -184,7 +196,8 @@ def write_ini(values):
             out.append(f'{key[:-8]}\\default=false')
         else:
             out.append(line)
-    sections = {'volume': '[Audio]', 'language_index': '[System]', 'region_index': '[System]'}
+    sections = {'volume': '[Audio]', 'output_device': '[Audio]', 'language_index': '[System]',
+                'region_index': '[System]', 'sound_index': '[System]'}
     for key in (k for k in values if k not in seen):
         header = ('[Controls]' if key.startswith(('player_', 'mouse_'))
                   else sections.get(key, '[Renderer]'))
@@ -782,6 +795,22 @@ class Launcher(tk.Tk):
                   style='Zoot.Horizontal.TScale',
                   command=lambda v: self.set_opt('volume', int(float(v)))).pack(
             side='right', fill='x', expand=True, padx=(24, 0))
+        self.combo(box, 'sound_mode', _('Saída de som'), SOUND_MODES)
+        devices = [(_('Automático'), 'auto')] + [(d, d) for d in self.audio_devices()]
+        self.combo(box, 'audio_device', _('Dispositivo de som'), devices, width=30)
+        self.switch(box, 'mute_bg', _('Silenciar com o jogo em segundo plano'))
+        self.pad(box)
+
+    def audio_devices(self):
+        """The sound devices the game can use, named as eden-cli names them (cached)."""
+        if not hasattr(self, '_audio_devices'):
+            self._audio_devices = []
+            try:
+                data = C.run_core(CORE, ['--zoot-audio-devices'], BASE, 15) or []
+                self._audio_devices = [d for d in data if isinstance(d, str) and d]
+            except Exception:  # noqa: BLE001 - an old core or no devices: only Automatic
+                pass
+        return self._audio_devices
 
     def upscalers(self):
         """The upscaler choices this PC can use: FSR 4 only with an AMD card, DLSS only with an
@@ -809,9 +838,13 @@ class Launcher(tk.Tk):
         self.combo(box, 'sharpness', _('Nitidez (FSR)'), SHARPNESS)
         self.combo(box, 'aa', _('Anti-serrilhado'), AA)
         self.combo(box, 'aspect', _('Proporção'), ASPECT)
+        self.combo(box, 'anisotropy', _('Filtro anisotrópico'), ANISOTROPY)
+        self.combo(box, 'vram_mode', _('Uso da memória de vídeo'), VRAM_MODES)
         self.pad(box)
         box = self.card(page, _('Upscaler e geração de quadros'))
         self.combo(box, 'upscaler', 'Upscaler', self.upscalers())
+        if any(v == 'dlss' for _n, v in self.upscalers()):
+            self.combo(box, 'dlss_preset', _('Modelo do DLSS'), DLSS_PRESETS)
         self.combo(box, 'framegen', _('Geração de quadros'), FRAMEGEN)
         tk.Label(box, text=_('Valem ao abrir o jogo. FSR 3.1 e DLSS deixam a imagem mais nítida; '
                              'para mais FPS, baixe a Resolução junto com eles. A geração de '
@@ -1516,6 +1549,8 @@ class Launcher(tk.Tk):
             'nx2_frame_rate_limit': 240 if s['fps_mode'] == 'unlimited' else 60,
             'ocarina_fsr': fsr, 'amd_fsr4': fsr4, 'nvidia_dlss': dlss,
             'frame_gen': 'true' if s.get('framegen') else 'false', 'frame_gen_type': 1,
+            'max_anisotropy': s.get('anisotropy', 5), 'vram_usage_mode': s.get('vram_mode', 0),
+            'sound_index': s.get('sound_mode', 1), 'output_device': s.get('audio_device', 'auto'),
             'mouse_panning_x_sensitivity': s.get('mouse_sens', 50),
             'mouse_panning_y_sensitivity': s.get('mouse_sens', 50),
         })
@@ -1533,6 +1568,8 @@ class Launcher(tk.Tk):
         env['ZOOT_PORT_VERSION'] = VERSION
         env['ZOOT_LANG'] = I18N.LANG  # the loading screen speaks the launcher's language
         env['ZOOT_MOUSE_CAMERA'] = '1' if self.settings.get('mouse_camera', True) else '0'
+        env['ZOOT_MUTE_BACKGROUND'] = '1' if self.settings.get('mute_bg') else '0'
+        env['EDEN_NX2_DLSS_PRESET'] = self.settings.get('dlss_preset', 'K')
         if self.settings['gpl']:
             env['EDEN_NX2_GPL_OPTIMIZE'] = '1'
         args = [str(CORE), '-g', self.settings['game']]

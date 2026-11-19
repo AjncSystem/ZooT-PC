@@ -12,6 +12,9 @@
 #include <thread>
 
 #include <nlohmann/json.hpp>
+#ifdef _WIN32
+#include <objbase.h>
+#endif
 #include <vector>
 #include <cstdlib>
 #include <chrono>
@@ -39,6 +42,7 @@
 #include "common/fs/path_util.h"
 #include "common/logging.h"
 #include "common/scm_rev.h"
+#include "audio_core/sink/sink_details.h"
 #include "common/settings.h"
 #include "common/string_util.h"
 #include "core/core.h"
@@ -920,6 +924,23 @@ extern "C" SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
 
     if (argc > 1 && std::string_view{argv[1]} == "--build-warm") {
         return BuildWarm(state->system, argc, argv) ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
+    }
+    if (argc > 1 && std::string_view{argv[1]} == "--zoot-audio-devices") {
+        // The launcher's sound device list: the output devices of the default audio engine,
+        // as a JSON list of names (what output_device takes).
+#ifdef _WIN32
+        // cubeb lists WASAPI devices through COM, which the game itself sets up first.
+        CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+#endif
+        auto devices =
+            AudioCore::Sink::GetDeviceListForSink(Settings::values.sink_id.GetValue(), false);
+
+        nlohmann::json list = nlohmann::json::array();
+        for (const auto& name : devices) {
+            list.push_back(name);
+        }
+        fmt::print("{}\n", list.dump());
+        return SDL_APP_SUCCESS;
     }
     if (argc > 1 && std::string_view{argv[1]} == "--zoot-export-states") {
         return ExportPipelineStates(argc, argv) ? SDL_APP_SUCCESS : SDL_APP_FAILURE;

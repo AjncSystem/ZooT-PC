@@ -347,6 +347,24 @@ void EmuWindow_SDL3::OnEvent(SDL_Event& event) {
     if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
         ZootHoldMouse(false);
     }
+    // ZooT-PC "mute in background" (the launcher's ZOOT_MUTE_BACKGROUND=1): volume 0 while
+    // another window has the focus, back when the game has it again. The F1 menu's own window
+    // taking the focus is not the background.
+    static const bool mute_background = [] {
+        const char* value = std::getenv("ZOOT_MUTE_BACKGROUND");
+        return value && value[0] == '1';
+    }();
+    if (mute_background && (event.type == SDL_EVENT_WINDOW_FOCUS_LOST ||
+                            event.type == SDL_EVENT_WINDOW_FOCUS_GAINED)) {
+        const bool menu = zoot_overlay && zoot_overlay->MenuOpen();
+        if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST && !menu && zoot_volume_before_mute < 0) {
+            zoot_volume_before_mute = Settings::values.volume.GetValue();
+            Settings::values.volume.SetValue(0);
+        } else if (event.type == SDL_EVENT_WINDOW_FOCUS_GAINED && zoot_volume_before_mute >= 0) {
+            Settings::values.volume.SetValue(static_cast<u8>(zoot_volume_before_mute));
+            zoot_volume_before_mute = -1;
+        }
+    }
     if (SdlWindowState::NeedsUpdate(event.type)) {
         return OnResize();
     }
