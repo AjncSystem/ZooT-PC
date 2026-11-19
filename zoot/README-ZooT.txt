@@ -1,5 +1,5 @@
-ZooT-PC v0.13.1
-===============
+ZooT-PC v1.01
+=============
 
 Port para PC de The Legend of Zelda: Ocarina of Time (Nintendo Switch 2), feito sobre o
 Lichii (github.com/zortos293/Lichii, GPL-3.0).
@@ -32,6 +32,9 @@ Opcoes
 - Upscaler: o do jogo, AMD FSR 3.1 (qualquer placa), AMD FSR 4 (placas AMD) ou NVIDIA DLSS
   (placas RTX; as DLLs oficiais da NVIDIA ficam em streamline\, licencas em licenses\).
 - Geracao de quadros 2x: um quadro gerado entre dois do jogo.
+- Filtro anisotropico (ate 16x, o padrao), uso da memoria de video, modelo do DLSS.
+- Som: estereo, surround 5.1 ou mono; dispositivo de som; silenciar com o jogo em segundo
+  plano (Jogo > Audio).
 
 Atalhos no jogo
 ---------------

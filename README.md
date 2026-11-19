@@ -63,6 +63,10 @@ from your PC: it replaces the Z on the card and goes behind the loading screen, 
 - **Upscaler**: Ocarina renders 1440p docked and upscales to 4K; *Display & FPS → Upscaler*
   replaces its upscaler with **AMD FSR 3.1** (any GPU), **AMD FSR 4** (AMD cards) or
   **NVIDIA DLSS** (RTX cards; NVIDIA's signed Streamline DLLs are included in `streamline\`).
+- **Picture and sound**: anisotropic filtering up to 16x (the default), video memory use
+  (conservative or aggressive), the NVIDIA DLSS model (Transformer K, Transformer 2 M/L);
+  sound output in stereo, **surround 5.1** or mono, the sound device of your choice, and mute
+  while the game is in the background.
 - **Portable**: everything stays next to the executables, in `user\` (config, saves, shader
   caches, logs). Nothing goes to `%AppData%` or `%TEMP%`.
 
